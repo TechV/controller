@@ -39,7 +39,7 @@
 #define min(a,b) ((a)<(b)?(a):(b))
 #define i2c_write   writeBytes
 #define i2c_read    readBytes
-#define delay_ms(a)    sleep(a*1000)
+#define delay_ms(a)    usleep(a*1000)
 #define printf_P	printf
 
 #if !defined MPU6050 && !defined MPU9150 && !defined MPU6500 && !defined MPU9250
