@@ -16,6 +16,8 @@ MotionSensor/libMotionSensor.a:
 libs/libI2Cdev.a:
 	$(MAKE) -C libs/I2Cdev
 
+install:
+	$(INSTALL) -m 755 controller $(DESTDIR)/usr/local/bin/
 
 clean:
 	cd MotionSensor && $(MAKE) clean
