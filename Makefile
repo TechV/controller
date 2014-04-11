@@ -1,6 +1,7 @@
 CPP=g++
 LDFLAGS = -lm -lrt 
 CFLAGS= -Wall -g -O2
+INSTALL=install
 
 all: controller.o 
 	$(CPP) $(LDFLAGS) $(CFLAGS) -o controller \
