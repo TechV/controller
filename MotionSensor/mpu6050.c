@@ -5,24 +5,32 @@
 #include <string.h>
 #include <math.h>
 
+#include "helper_3dmath.h"
 #include "../MotionSensor.h"
+#include "inv_mpu_lib/inv_mpu.h"
 #include "inv_mpu_lib/inv_mpu_dmp_motion_driver.h"
 #include "mpu6050.h"
 
 #define wrap_180(x) (x < -180 ? x+360 : (x > 180 ? x - 360: x))
 
 // MPU control/status vars
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
+int16_t mpuIntStatus;   // holds actual interrupt status byte from MPU
 uint8_t devStatus;      // return status after each device operation
                           //(0 = success, !0 = error)
 uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoCount;     // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 int16_t g[3];              // [x, y, z]            gyro vector
 Quaternion q;           // [w, x, y, z]         quaternion container
+int32_t _q[4];
+
 VectorFloat gravity;    // [x, y, z]            gravity vector
 
+int r;
+int initialized = 0;
+int dmpReady = 0;
+float lastval[3];
 int16_t sensors;
 
 float ypr[3];
@@ -38,12 +46,13 @@ void _initialize() {
   printf("Collecting... ");
   do {
 	  sleep(1);
-	  dmp_read_fifo(NULL,NULL,&q,&sensors,&fifoCount);
+	  while (dmp_read_fifo(g,NULL,_q,&sensors,&fifoCount)!=0);
 	  printf("%u ",fifoCount);
-  while (fifoCount<42 || fifoCount>=1024)
+  } while (fifoCount<42 || fifoCount>=1024);
   printf("\n");
   
-  dmp_read_fifo(&g,NULL,&q,&sensors,&fifoCount); //gyro and accel can be null because of being disabled in the efeatures
+  while (dmp_read_fifo(g,NULL,_q,&sensors,&fifoCount)!=0); //gyro and accel can be null because of being disabled in the efeatures
+  q = _q;
   GetGravity(&gravity, &q);
   GetYawPitchRoll(ypr, &q, &gravity);
 
@@ -51,13 +60,13 @@ void _initialize() {
   printf("yaw = %f, pitch = %f, roll = %f\n\n",
 	 ypr[YAW]*180/M_PI, ypr[PITCH]*180/M_PI,
 	 ypr[ROLL]*180/M_PI);
-  initialized = true;
+  initialized = 1;
 }
 
 
 int ms_open() {
-  dmpReady=true;
-  initialized = false;
+  dmpReady=1;
+  initialized = 0;
   for (int i=0;i<DIM;i++){
     lastval[i]=10;
   }
@@ -65,19 +74,14 @@ int ms_open() {
    // initialize device
     printf("Initializing I2C devices...\n");
 
-    mpu_init(NULL);
+    if (mpu_init(NULL) != 0) return -1;
     mpu_set_gyro_fsr(250);
     mpu_set_accel_fsr(2);
 
-    mpu_get_powerstate(&devStatus);
-    if (devStatus==0) {
-       printf("ERROR: MPU6050 not powered!\n");
-       return -1; 
-    }
-
     // verify connection
     printf("Testing device connections...\n");
-    printf(mpu.testConnection() ? "MPU6050 connection successful\n" : "MPU6050 connection failed\n");
+    mpu_get_power_state(&devStatus);
+    printf(devStatus ? "MPU6050 connection successful\n" : "MPU6050 connection failed\n");
 
     // load and configure the DMP
     printf("Initializing DMP...\n");
@@ -103,7 +107,7 @@ int ms_open() {
 
         // get expected DMP packet size for later comparison
 	//packetSize = MAX_PACKET_LENGTH;
-	packetSize = dmp.packet_length;
+	packetSize = 0;//dmp.packet_length;
     } else {
         // ERROR!
         // 1 = initial memory load failed
@@ -121,7 +125,7 @@ int ms_update() {
 
   // wait for FIFO count > 42 bits
   do {
-    dmp_read_fifo(&g,NULL,&q,&sensors,&fifoCount); //gyro and accel can be null because of being disabled in the efeatures
+    while (dmp_read_fifo(g,NULL,_q,&sensors,&fifoCount)!=0); //gyro and accel can be null because of being disabled in the efeatures
   }while (fifoCount<42);
 
   if (fifoCount == 1024) {
@@ -139,7 +143,7 @@ int ms_update() {
     //mpu.dmpGetGravity(&gravity, &q);
     //mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-    dmp_read_fifo(&g,NULL,&q,&sensors,&fifoCount); //gyro and accel can be null because of being disabled in the efeatures
+    while (dmp_read_fifo(g,NULL,_q,&sensors,&fifoCount)!=0); //gyro and accel can be null because of being disabled in the efeatures
     GetGravity(&gravity, &q);
     GetYawPitchRoll(ypr, &q, &gravity);
 
@@ -172,7 +176,7 @@ int ms_update() {
 }
 
 int ms_close() {
-
+	return 0;
 } 
 
 uint8_t GetGravity(VectorFloat *v, Quaternion *q) {
@@ -192,10 +196,3 @@ uint8_t GetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
     return 0;
 }
 
-uint8_t GetGyro(int32_t *data, const uint8_t* packet) {
-    if (packet == 0) packet = dmpPacketBuffer;
-    data[0] = ((packet[16] << 24) + (packet[17] << 16) + (packet[18] << 8) + packet[19]);
-    data[1] = ((packet[20] << 24) + (packet[21] << 16) + (packet[22] << 8) + packet[23]);
-    data[2] = ((packet[24] << 24) + (packet[25] << 16) + (packet[26] << 8) + packet[27]);
-    return 0;
-}

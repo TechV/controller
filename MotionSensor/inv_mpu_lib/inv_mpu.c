@@ -22,7 +22,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include "inv_mpu.h"
-#include "../../libs/I2Cdev/I2Cdev.h"
+
+#include <math.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "I2Cdev/I2Cdev.h"
 
 /* The following functions must be defined for this platform:
  * i2c_write(uint8_t slave_addr, uint8_t reg_addr, uint8_t length, uint8_t const *data)
@@ -31,13 +37,10 @@
  * min(int a, int b)
  */
 #define min(a,b) ((a)<(b)?(a):(b))
-#define i2c_write   WriteBytes
-#define i2c_read    ReadBytes
-#define delay_ms(a)    udelay(a*1000)
-#define printf	printf
-
-#define MPU_DEBUG	// print some debug messages
-#define MPU6050
+#define i2c_write   writeBytes
+#define i2c_read    readBytes
+#define delay_ms(a)    sleep(a*1000)
+#define printf_P	printf
 
 #if !defined MPU6050 && !defined MPU9150 && !defined MPU6500 && !defined MPU9250
 #error  Which gyro are you using? Define MPUxxxx in your compiler options.
@@ -235,8 +238,8 @@ struct gyro_state_s
 {
 	const struct gyro_reg_s *reg;
 	const struct hw_s *hw;
-	struct chip_cfg_s chip_cfg;
 	const struct test_s *test;
+	struct chip_cfg_s chip_cfg;
 };
 
 /* Filter configurations. */
@@ -394,6 +397,8 @@ const struct gyro_reg_s reg =
 	.fifo_en        = 0x23,
 	.gyro_cfg       = 0x1B,
 	.accel_cfg      = 0x1C,
+		.accel_cfg2      = 0x00,
+		.lp_accel_odr	 = 0x00,
 	.motion_thr     = 0x1F,
 	.motion_dur     = 0x20,
 	.fifo_count_h   = 0x72,
@@ -404,6 +409,7 @@ const struct gyro_reg_s reg =
 	.int_enable     = 0x38,
 	.dmp_int_status = 0x39,
 	.int_status     = 0x3A,
+		.accel_intel    = 0x00,
 	.pwr_mgmt_1     = 0x6B,
 	.pwr_mgmt_2     = 0x6C,
 	.int_pin_cfg    = 0x37,
@@ -414,9 +420,7 @@ const struct gyro_reg_s reg =
 	.mem_start_addr = 0x6E,
 	.prgm_start_h   = 0x70
 #ifdef AK89xx_SECONDARY
-	,.raw_compass   = 0x49,
-	.yg_offs_tc     = 0x01,
-	.s0_addr        = 0x25,
+	,.s0_addr        = 0x25,
 	.s0_reg         = 0x26,
 	.s0_ctrl        = 0x27,
 	.s1_addr        = 0x28,
@@ -425,7 +429,9 @@ const struct gyro_reg_s reg =
 	.s4_ctrl        = 0x34,
 	.s0_do          = 0x63,
 	.s1_do          = 0x64,
-	.i2c_delay_ctrl = 0x67
+	.i2c_delay_ctrl = 0x67,
+	.raw_compass    = 0x49,
+	.yg_offs_tc     = 0x01
 #endif
 };
 const struct hw_s hw =
@@ -612,7 +618,7 @@ uint8_t mpu_reg_dump(void)
 		if (i2c_read(st.hw->addr, ii, 1, &data))
 			return 1;
 #if defined MPU_DEBUG
-		printf_P(PSTR("%#5x: %#5x\r\r\n"), ii, data);
+		printf_P("%#5x: %#5x\r\r\n", ii, data);
 #endif
 	}
 	return 0;
@@ -669,7 +675,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 	rev = ((data[5] & 0x01) << 2) | ((data[3] & 0x01) << 1) |
 				(data[1] & 0x01);
 #if defined MPU_DEBUG
-	printf_P(PSTR("Software product rev. %d.\r\n"), rev);
+	printf_P("Software product rev. %d.\r\n", rev);
 #endif
 	if (rev)
 	{
@@ -681,7 +687,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 		else
 		{
 #if defined MPU_DEBUG
-			printf_P(PSTR("Unsupported software product rev. %d.\r\n"), rev);
+			printf_P("Unsupported software product rev. %d.\r\n", rev);
 #endif
 			return 1;
 		}
@@ -694,15 +700,15 @@ uint8_t mpu_init(struct int_param_s *int_param)
 		if (!rev)
 		{
 #if defined MPU_DEBUG
-			printf_P(PSTR("Product ID read as 0 indicates device is either "
-						"incompatible or an MPU3050.\r\n"));
+			printf_P("Product ID read as 0 indicates device is either "
+						"incompatible or an MPU3050.\r\n");
 #endif
 			return 1;
 		}
 		else if (rev == 4)
 		{
 #if defined MPU_DEBUG
-			printf_P(PSTR("Half sensitivity part found.\r\n"));
+			printf_P("Half sensitivity part found.\r\n");
 #endif
 			st.chip_cfg.accel_half = 1;
 		}
@@ -718,7 +724,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 	else
 	{
 #if defined MPU_DEBUG
-		printf_P(PSTR("Unsupported software product rev. %d.\r\n"), rev);
+		printf_P("Unsupported software product rev. %d.\r\n", rev);
 #endif
 		return 1;
 	}
@@ -780,7 +786,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 
 	mpu_set_sensors(0);
 #if defined MPU_DEBUG
-	printf_P(PSTR("Initializing is done...\r\n"));
+	printf_P("Initializing is done...\r\n");
 #endif
 	return 0;
 }
@@ -1661,7 +1667,7 @@ uint8_t mpu_read_fifo(int16_t *gyro, int16_t *accel,
 	if (fifo_count < packet_size)
 		return 0;
 #if defined MPU_DEBUG
-    printf_P(PSTR("FIFO count: %hd\r\n"), fifo_count);
+    printf_P("FIFO count: %hd\r\n", fifo_count);
 #endif
 	if (fifo_count > (st.hw->max_fifo >> 1))
 	{
@@ -2317,7 +2323,7 @@ uint8_t mpu_load_firmware(uint16_t length, const uint8_t *firmware,
 	for (ii = 0; ii < length; ii += this_write)
 	{
 		this_write = min(LOAD_CHUNK, length - ii);		
-		for (jj = 0; jj < LOAD_CHUNK; jj++) pgm_buf[jj] = pgm_read_byte(firmware + ii + jj);
+		for (jj = 0; jj < LOAD_CHUNK; jj++) pgm_buf[jj] = firmware[ii+jj];//pgm_read_byte(firmware + ii + jj);
 		if (mpu_write_mem(ii, this_write, pgm_buf))
 			return 1;
 		if (mpu_read_mem(ii, this_write, cur))
@@ -2397,7 +2403,7 @@ static int setup_compass(void)
 #ifdef AK89xx_SECONDARY
 	uint8_t data[4], akm_addr;
 #if defined MPU_DEBUG
-	printf_P(PSTR("Initializing compass...\r\n"));
+	printf_P("Initializing compass...\r\n");
 #endif
 	mpu_set_bypass(1);
 
@@ -2414,7 +2420,7 @@ static int setup_compass(void)
 	{
 		/* TODO: Handle this case in all compass-related functions. */
 #if defined MPU_DEBUG
-		printf_P(PSTR("Compass not found.\r\n"));
+		printf_P("Compass not found.\r\n");
 #endif
 		return 1;
 	}
@@ -2493,7 +2499,7 @@ static int setup_compass(void)
 #ifdef MPU9150
 	/* For the MPU9150, the auxiliary I2C bus needs to be set to VDD. */
 #if defined MPU_DEBUG
-	printf_P(PSTR("Initializing compass at IMU...\r\n"));
+	printf_P("Initializing compass at IMU...\r\n");
 #endif
 	data[0] = BIT_I2C_MST_VDDIO;
 	if (i2c_write(st.hw->addr, st.reg->yg_offs_tc, 1, data))
