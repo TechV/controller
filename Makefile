@@ -1,18 +1,24 @@
-CC?=gcc
-LIBS = -lm -lrt 
+CPP=g++
+LDFLAGS = -lm -lrt 
+CFLAGS= -Wall -g -O2
 
-OPT_Debug= -Wall -g -O2
+all: controller.o 
+	$(CPP) $(LDFLAGS) $(CFLAGS) -o controller \
+		main.c \
+		MotionSensor/libMotionSensor.a \
+		libs/libI2Cdev.a
 
-#CXXFLAGS = -DDMP_FIFO_RATE=1
+controller.o: MotionSensor/libMotionSensor.a libs/libI2Cdev.a
 
-ALL:$(EXEC)
+MotionSensor/libMotionSensor.a:
+	$(MAKE) -C MotionSensor/ 
 
-$(EXEC):$(OBJ)
-	$(CC) $(CXXFLAGS) $(OPT_Debug) -o $@ $^ $(LIBS)
+libs/libI2Cdev.a:
+	$(MAKE) -C libs/I2Cdev
 
-%.o: %.c
-	$(CC) $(CXXFLAGS) $(OPT_Debug) -o $@ -c $^ $(LIBS)
 
 clean:
+	cd MotionSensor && $(MAKE) clean
+	cd libs/I2Cdev && $(MAKE) clean
 	rm -rf *.o *~ *.mod
-	rm -rf $(EXEC)
+	rm -rf $(LIB)
