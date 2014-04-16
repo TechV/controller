@@ -11,22 +11,26 @@ INSTALL=install
 all: controller.o 
 	$(CXX) $(LDFLAGS) $(CXXFLAGS) -o controller \
 		main.c \
-		MotionSensor/libMotionSensor.a \
+		receiver/libreceiver.a \
 		libs/libI2Cdev.a
 
-controller.o: MotionSensor/libMotionSensor.a libs/libI2Cdev.a
+controller.o: motionsensor/libmotionsensor.a receiver/libreceiver.a libs/libi2cdev.a
 
-MotionSensor/libMotionSensor.a:
-	$(MAKE) -C MotionSensor/ 
+motionsensor/libmotionsensor.a:
+	$(MAKE) -C motionsensor/ 
 
-libs/libI2Cdev.a:
-	$(MAKE) -C libs/I2Cdev
+receiver/libreceiver.a:
+	$(MAKE) -C receiver/ 
+
+libs/libi2cdev.a:
+	$(MAKE) -C libs/i2cdev
 
 install:
 	$(INSTALL) -m 755 controller $(DESTDIR)/usr/local/bin/
 
 clean:
-	cd MotionSensor && $(MAKE) clean
-	cd libs/I2Cdev && $(MAKE) clean
+	cd motionsensor && $(MAKE) clean
+	cd receiver && $(MAKE) clean
+	cd libs/i2cdev && $(MAKE) clean
 	rm -rf *.o *~ *.mod
 	rm -rf $(LIB)
