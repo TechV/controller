@@ -4,32 +4,32 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 
 #include "helper_3dmath.h"
 #include "../motionsensor.h"
 #include "inv_mpu_lib/inv_mpu.h"
 #include "inv_mpu_lib/inv_mpu_dmp_motion_driver.h"
-#include "sensor.h"
+#include "mpu6050.h"
 
 #define wrap_180(x) (x < -180 ? x+360 : (x > 180 ? x - 360: x))
 #define delay_ms(a)    usleep(a*1000)
 
-int16_t a[3];              // [x, y, z]            accel vector
-int16_t g[3];              // [x, y, z]            gyro vector
-int32_t _q[4];
-Quaternion q; 
-int32_t t;
-int16_t c[3];
-VectorFloat gravity;    // [x, y, z]            gravity vector
+static int16_t a[3];              // [x, y, z]            accel vector
+static int16_t g[3];              // [x, y, z]            gyro vector
+static int32_t _q[4];
+static Quaternion q; 
+static int32_t t;
+static int16_t c[3];
+static VectorFloat gravity;    // [x, y, z]            gravity vector
 
 
-int r;
-int initialized = 0;
-int dmpReady = 0;
-emnsloat lastval[3];
-int16_t sensors;
-uint8_t devStatus;      // return status after each device operation
-uint8_t fifoCount;     // count of all bytes currently in FIFO
+static int r;
+static int initialized = 0;
+static int dmpReady = 0;
+static int16_t sensors;
+static uint8_t devStatus;      // return status after each device operation
+static uint8_t fifoCount;     // count of all bytes currently in FIFO
 
 
 
@@ -40,9 +40,6 @@ uint8_t rate = 100;
 int ms_open() {
 	dmpReady=1;
 	initialized = 0;
-	for (int i=0;i<DIM;i++){
-		lastval[i]=10;
-	}
 
 	// initialize device
 	printf("Initializing MPU...\n");
@@ -140,7 +137,7 @@ int ms_update() {
 
 	//scaling for degrees output
 	for (int i=0;i<DIM;i++){
-		ms.ype*=180/M_PI;
+		ms.ypr[DIM]*=180/M_PI;
 	}
 
 	//unwrap yaw when it reaches 180

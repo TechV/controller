@@ -1,6 +1,7 @@
 CXX=g++
 CXXFLAGS= -Wall -g -O2
 CXX_OPTS= -Wall -g -O2
+LDFLAGS=-lpthread -pthread
 
 INSTALL=install
 
@@ -9,10 +10,11 @@ INSTALL=install
 
 
 all: controller.o 
-	$(CXX) $(LDFLAGS) $(CXXFLAGS) -o controller \
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o controller \
 		main.c \
+		motionsensor/libmotionsensor.a \
 		receiver/libreceiver.a \
-		libs/libI2Cdev.a
+		libs/libi2cdev.a
 
 controller.o: motionsensor/libmotionsensor.a receiver/libreceiver.a libs/libi2cdev.a
 

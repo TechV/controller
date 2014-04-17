@@ -1,6 +1,14 @@
 #ifndef _MOTION_SENSOR_H_
 #define _MOTION_SENSOR_H_
 
+#include <pthread.h>
+
+#define YAW 0
+#define PITCH 1
+#define ROLL 2
+#define DIM 3
+
+
 struct s_ms {
 	float ypr[3];
 	float gypro[3];

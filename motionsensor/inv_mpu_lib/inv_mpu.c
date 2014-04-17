@@ -28,7 +28,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "I2Cdev/I2Cdev.h"
+#include "i2cdev/i2cdev.h"
 
 /* The following functions must be defined for this platform:
  * i2c_write(uint8_t slave_addr, uint8_t reg_addr, uint8_t length, uint8_t const *data)

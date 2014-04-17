@@ -1,12 +1,12 @@
 CXX=g++
 AR=ar
 CXXFLAGS=-Wall -g -O2
-CXX_OPTS=-c -DMPU6050 -DMPU_DEBUG -I../libs/
+CXX_OPTS=-c -I../libs/ -DREVISION=2
 
-SOURCES=mpu6050.c inv_mpu_lib/inv_mpu.c inv_mpu_lib/inv_mpu_dmp_motion_driver.c
+SOURCES=blaster.c
 OBJECTS=$(SOURCES:.c=.o)
 
-LIB=libmotionsensor.a
+LIB=libspeedcontroller.a
 
 %.o: %.c
 	$(CXX) $(CXXFLAGS) $(CXX_OPTS) $< -o $@ 
@@ -19,5 +19,4 @@ all: $(LIB)
 
 clean:
 	rm -rf *.o
-	rm -rf inv_mpu_lib/*.o
 	rm -rf $(LIB)

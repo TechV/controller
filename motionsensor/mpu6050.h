@@ -1,11 +1,6 @@
 #ifndef MPU6050_H
 #define MPU6050_H
 
-#define YAW 0
-#define PITCH 1
-#define ROLL 2
-#define DIM 3
-
 int ms_open();
 int ms_update();
 int ms_close();
