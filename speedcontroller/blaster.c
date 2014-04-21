@@ -34,6 +34,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
+#include "../speedcontroller.h"
+
 static char VERSION[] = "0.1.0";
 
 // Created new known_pins with raspberry pi list of pins
@@ -204,9 +206,7 @@ udelay(int us)
 	nanosleep(&ts, NULL);
 }
 
-static void
-terminate(int dummy)
-{
+void shutdown() {
 	int i;
 
 	if (dma_reg && virtbase) {
@@ -217,6 +217,14 @@ terminate(int dummy)
 		dma_reg[DMA_CS] = DMA_RESET;
 		udelay(10);
 	}
+
+}
+
+static void
+terminate(int dummy)
+{
+	shutdown();
+	exit(-1);
 }
 
 static void
@@ -626,7 +634,7 @@ init_channel_pwm(void)
 		channel_pwm[i] = 0;
 }
 
-void esc_update(int servo, float value) {
+void sc_update(int servo, float value) {
 	if ((servo < 0) || (value < 0) || (value > 1)) {
 		esc_close();
 		return;
@@ -634,11 +642,11 @@ void esc_update(int servo, float value) {
 	set_pwm(servo,value);
 }
 
-void esc_close() {
-	terminate(0);
+void sc_close() {
+	shutdown();
 }
 
-void esc_init() {
+void sc_init() {
 	//parseargs(argc, argv);
 
 	printf("Using hardware:                 %5s\n", delay_hw == DELAY_VIA_PWM ? "PWM" : "PCM");
