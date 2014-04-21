@@ -8,6 +8,7 @@
 
 #include "motionsensor.h"
 #include "receiver.h"
+#include "speedcontroller.h"
 
 #define delay_ms(a) usleep(a*1000)
 
