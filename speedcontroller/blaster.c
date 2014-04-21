@@ -60,8 +60,6 @@ static uint8_t pin2gpio[8];
 // Set num of possible PWM channels based on the known pins size.
 #define NUM_CHANNELS    (sizeof(known_pins)/sizeof(known_pins[0]))
 
-#define DEVFILE			"/dev/pi-blaster"
-
 #define PAGE_SIZE		4096
 #define PAGE_SHIFT		12
 
@@ -219,8 +217,6 @@ terminate(int dummy)
 		dma_reg[DMA_CS] = DMA_RESET;
 		udelay(10);
 	}
-	unlink(DEVFILE);
-	exit(1);
 }
 
 static void
@@ -630,110 +626,20 @@ init_channel_pwm(void)
 		channel_pwm[i] = 0;
 }
 
-static void
-go_go_go(void)
-{
-	FILE *fp;
-
-	if ((fp = fopen(DEVFILE, "r+")) == NULL)
-		fatal("pi-blaster: Failed to open %s: %m\n", DEVFILE);
-
-	char *lineptr = NULL, nl;
-	size_t linelen;
-
-	for (;;) {
-		int n, servo;
-		float value;
-
-		if ((n = getline(&lineptr, &linelen, fp)) < 0)
-			continue;
-		//fprintf(stderr, "[%d]%s", n, lineptr);
-		n = sscanf(lineptr, "%d=%f%c", &servo, &value, &nl);
-		if (n !=3 || nl != '\n') {
-			//fprintf(stderr, "Bad input: %s", lineptr);
-      n = sscanf(lineptr, "release %d", &servo);
-      if (n != 1 || nl != '\n') {
-        fprintf(stderr, "Bad input: %s", lineptr);
-      } else {
-        // Release Pin from pin2gpio array if the release command is received.
-        release_pwm(servo);
-      }
-		} else if (servo < 0){ // removed servo validation against CHANNEL_NUM no longer needed since now we used real GPIO names
-			fprintf(stderr, "Invalid channel number %d\n", servo);
-		} else if (value < 0 || value > 1) {
-			fprintf(stderr, "Invalid value %f\n", value);
-		} else {
-			set_pwm(servo, value);
-		}
+void esc_update(int servo, float value) {
+	if ((servo < 0) || (value < 0) || (value > 1)) {
+		esc_close();
+		return;
 	}
+	set_pwm(servo,value);
 }
 
-void
-parseargs(int argc, char **argv)
-{
-	int index;
-	int c;
-
-	static struct option longopts[] =
-	{
-		{"help", no_argument, 0, 'h'},
-		{"invert", no_argument, 0, 'i'},
-		{"pcm", no_argument, 0, 'p'},
-		{"version", no_argument, 0, 'v'},
-		{0, 0, 0, 0}
-	};
-
-	while (1)
-	{
-
-		index = 0;
-		c = getopt_long(argc, argv, "hipv", longopts, &index);
-
-		if (c == -1)
-			break;
-
-		switch (c)
-		{
-		case 0:
-			/* handle flag options (array's 3rd field non-0) */
-			break;
-
-		case 'h':
-			fprintf(stderr, "%s version %s\n", argv[0], VERSION);
-			fprintf(stderr, "Usage: %s [-hipv]\n"
-				"-h (--help)    - this information\n"
-				"-i (--invert)  - invert pin output (pulse LOW)\n"
-				"-p (--pcm)     - use pcm for dmascheduling\n"
-				"-v (--version) - version information\n"
-				, argv[0]);
-			exit(-1);
-
-		case 'i':
-			invert_mode = 1;
-			break;
-
-		case 'p':
-			delay_hw = DELAY_VIA_PCM;
-			break;
-
-		case 'v':
-			fprintf(stderr, "%s version %s\n", argv[0], VERSION);
-			exit(-1);
-
-		case '?':
-			/* getopt_long already reported error? */
-			exit(-1);
-
-		default:
-			exit(-1);
-		}
-	}
+void esc_close() {
+	terminate(0);
 }
 
-int
-main(int argc, char **argv)
-{
-	parseargs(argc, argv);
+void esc_init() {
+	//parseargs(argc, argv);
 
 	printf("Using hardware:                 %5s\n", delay_hw == DELAY_VIA_PWM ? "PWM" : "PCM");
 	printf("Number of channels:             %5d\n", NUM_CHANNELS);
@@ -766,19 +672,6 @@ main(int argc, char **argv)
   // Init pin2gpio array with 0/false values to avoid locking all of them as PWM.
 	init_pin2gpio();
   // Only calls update_pwm after ctrl_data calculates the pin mask to unlock all pins on start.
-  init_pwm();
-
-	unlink(DEVFILE);
-	if (mkfifo(DEVFILE, 0666) < 0)
-		fatal("pi-blaster: Failed to create %s: %m\n", DEVFILE);
-	if (chmod(DEVFILE, 0666) < 0)
-		fatal("pi-blaster: Failed to set permissions on %s: %m\n", DEVFILE);
-
-	if (daemon(0,1) < 0)
-		fatal("pi-blaster: Failed to daemonize process: %m\n");
-
-	go_go_go();
-
-	return 0;
+  	init_pwm();
 }
 
