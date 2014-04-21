@@ -14,10 +14,14 @@ all: controller.o
 		main.c \
 		motionsensor/libmotionsensor.a \
 		receiver/libreceiver.a \
+		speedcontroller/libspeedcontroller.a \
 		libs/libi2cdev.a
 
-controller.o: motionsensor/libmotionsensor.a receiver/libreceiver.a libs/libi2cdev.a
+controller.o: motionsensor/libmotionsensor.a receiver/libreceiver.a speedcontroller/libspeedcontroller.a libs/libi2cdev.a
 
+speedcontroller/libspeedcontroller.a:
+	$(MAKE) -C speedcontroller/ 
+	
 motionsensor/libmotionsensor.a:
 	$(MAKE) -C motionsensor/ 
 
@@ -33,6 +37,7 @@ install:
 clean:
 	cd motionsensor && $(MAKE) clean
 	cd receiver && $(MAKE) clean
+	cd speedcontroller && $(MAKE) clean
 	cd libs/i2cdev && $(MAKE) clean
 	rm -rf *.o *~ *.mod
 	rm -rf $(LIB)
