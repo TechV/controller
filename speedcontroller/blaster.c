@@ -16,7 +16,7 @@
  * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,18 +39,18 @@ static char VERSION[] = "0.1.0";
 // Created new known_pins with raspberry pi list of pins
 // to compare against the param received.
 static uint8_t known_pins[] = {
-	4,      // P1-7
-	17,     // P1-11
-	18,     // P1-12
+        4,      // P1-7
+        17,     // P1-11
+        18,     // P1-12
 #if REVISION == 2
-	27,     // P1-13
+        27,     // P1-13
 #else
-	21,     // P1-13
+        21,     // P1-13
 #endif
-	22,     // P1-15
-	23,     // P1-16
-	24,     // P1-18
-	25,     // P1-22
+        22,     // P1-15
+        23,     // P1-16
+        24,     // P1-18
+        25,     // P1-22
 };
 
 // pin2gpio array is not setup as empty to avoid locking all GPIO
@@ -79,7 +79,7 @@ static uint8_t pin2gpio[8];
 #define NUM_CBS			(NUM_SAMPLES*2)
 
 #define NUM_PAGES		((NUM_CBS * 32 + NUM_SAMPLES * 4 + \
-			PAGE_SIZE - 1) >> PAGE_SHIFT)
+					PAGE_SIZE - 1) >> PAGE_SHIFT)
 
 #define DMA_BASE		0x20007000
 #define DMA_LEN			0x24
@@ -179,7 +179,7 @@ static float channel_pwm[NUM_CHANNELS];
 static void set_pwm(int channel, float value);
 static void update_pwm();
 
-	static void
+static void
 gpio_set_mode(uint32_t pin, uint32_t mode)
 {
 	uint32_t fsel = gpio_reg[GPIO_FSEL0 + pin/10];
@@ -189,7 +189,7 @@ gpio_set_mode(uint32_t pin, uint32_t mode)
 	gpio_reg[GPIO_FSEL0 + pin/10] = fsel;
 }
 
-	static void
+static void
 gpio_set(int pin, int level)
 {
 	if (level)
@@ -198,7 +198,7 @@ gpio_set(int pin, int level)
 		gpio_reg[GPIO_CLR0] = 1 << pin;
 }
 
-	static void
+static void
 udelay(int us)
 {
 	struct timespec ts = { 0, us * 1000 };
@@ -206,7 +206,7 @@ udelay(int us)
 	nanosleep(&ts, NULL);
 }
 
-	static void
+static void
 terminate(int dummy)
 {
 	int i;
@@ -223,7 +223,7 @@ terminate(int dummy)
 	exit(1);
 }
 
-	static void
+static void
 fatal(char *fmt, ...)
 {
 	va_list ap;
@@ -234,7 +234,7 @@ fatal(char *fmt, ...)
 	terminate(0);
 }
 
-	static uint32_t
+static uint32_t
 mem_virt_to_phys(void *virt)
 {
 	uint32_t offset = (uint8_t *)virt - virtbase;
@@ -242,7 +242,7 @@ mem_virt_to_phys(void *virt)
 	return page_map[offset >> PAGE_SHIFT].physaddr + (offset % PAGE_SIZE);
 }
 
-	static void *
+static void *
 map_peripheral(uint32_t base, uint32_t len)
 {
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -261,16 +261,16 @@ map_peripheral(uint32_t base, uint32_t len)
 // Check if the pin provided is found in the list of known pins.
 static int
 is_known_pin(int pin){
-	int found = 0;
+  int found = 0;
 
-	int i;
-	for (i = 0; i < NUM_CHANNELS; i++) {
-		if (known_pins[i] == pin) {
-			found = 1;
-			break;
-		}
-	}
-	return(found);
+  int i;
+  for (i = 0; i < NUM_CHANNELS; i++) {
+    if (known_pins[i] == pin) {
+      found = 1;
+      break;
+    }
+  }
+  return(found);
 }
 
 // Set the pin to a pin2gpio element so pi-blaster can write to it,
@@ -278,107 +278,106 @@ is_known_pin(int pin){
 // in channel_pwm array.
 static int
 set_pin2gpio(int pin, float width){
-	int established = 0;
+  int established = 0;
 
-	int i;
-	for (i = 0; i < NUM_CHANNELS; i++) {
-		if (pin2gpio[i] == pin || pin2gpio[i] == 0) {
-			if (pin2gpio[i] == 0) {
-				gpio_set(pin, invert_mode);
-				gpio_set_mode(pin, GPIO_MODE_OUT);
-			}
-			pin2gpio[i] = pin;
-			channel_pwm[i] = width;
-			established = 1;
-			break;
-		}
-	}
+  int i;
+  for (i = 0; i < NUM_CHANNELS; i++) {
+    if (pin2gpio[i] == pin || pin2gpio[i] == 0) {
+      pin2gpio[i] = pin;
+      channel_pwm[i] = width;
+      gpio_set(pin2gpio[i], invert_mode);
+      gpio_set_mode(pin2gpio[i], GPIO_MODE_OUT);
+      established = 1;
+      break;
+    }
+  }
 
-	return(established);
+  return(established);
+
 }
 
 // To avoid storing the same pin 2 times after one pin has been released
 // we compact the pin2gpio array so all ON PWM pins are at the begining.
 static void
 compact_pin2gpio(){
-	int i, j = 0;
-	uint8_t tmp_pin2gpio[] = { 0,0,0,0,0,0,0,0 };
-	float tmp_channel_pwm[] = { 0,0,0,0,0,0,0,0 };
+  int i, j = 0;
+  uint8_t tmp_pin2gpio[] = { 0,0,0,0,0,0,0,0 };
+  float tmp_channel_pwm[] = { 0,0,0,0,0,0,0,0 };
 
-	for (i = 0; i < NUM_CHANNELS; i++) {
-		if (pin2gpio[i] != 0){
-			tmp_pin2gpio[j] = pin2gpio[i];
-			tmp_channel_pwm[j] = channel_pwm[i];
-			j++;
-		}
-	}
-	for (i= 0 ;i < NUM_CHANNELS; i++){
-		pin2gpio[i] = tmp_pin2gpio[i];
-		channel_pwm[i] = tmp_channel_pwm[i];
-	}
+  for (i = 0; i < NUM_CHANNELS; i++) {
+    if (pin2gpio[i] != 0){
+      tmp_pin2gpio[j] = pin2gpio[i];
+      tmp_channel_pwm[j] = channel_pwm[i];
+      j++;
+    }
+  }
+  for (i= 0 ;i < NUM_CHANNELS; i++){
+    pin2gpio[i] = tmp_pin2gpio[i];
+    channel_pwm[i] = tmp_channel_pwm[i];
+  }
 }
 
 // Pins can be relesead after being setup as PWM pins by writing the release <pin>
 // command to the /dev/pi-blaster file. We make sure to compact the pin2gpio array
 // that contains currently working pwm pins.
-	static int
+static int
 release_pin2gpio(int pin)
 {
-	int released = 0;
+  int released = 0;
 
-	int i;
-	for (i = 0; i < NUM_CHANNELS; i++) {
-		if (pin2gpio[i] == pin) {
-			channel_pwm[i] = 0;
-			pin2gpio[i] = 0;
-			released = 1;
-			break;
-		}
-	}
+  int i;
+  for (i = 0; i < NUM_CHANNELS; i++) {
+    if (pin2gpio[i] == pin) {
+      channel_pwm[i] = 0;
+      pin2gpio[i] = 0;
+      released = 1;
+      break;
+    }
+  }
 
-	compact_pin2gpio();
-	return(released);
+  compact_pin2gpio();
+  return(released);
 
 }
 
 // Set each provided pin to one in pin2gpio
-	static void
+static void
 set_pin(int pin, float width)
 {
-	if (is_known_pin(pin)){
-		set_pin2gpio(pin, width);
-	}else{
-		printf("Not a known pin for pi-blaster");
-	}
+  if (is_known_pin(pin)){
+    set_pin2gpio(pin, width);
+  }else{
+    printf("Not a known pin for pi-blaster");
+  }
 }
 
 // Function make sure the pin we want to release is a valid pin, if it is
 // then calls release_pin2gpio to delete it from currently ON pins.
-	static void
+static void
 release_pin(int pin)
 {
-	if (is_known_pin(pin)){
-		release_pin2gpio(pin);
-	}else{
-		printf("Not a known pin for pi-blaster");
-	}
+  if (is_known_pin(pin)){
+    release_pin2gpio(pin);
+  }else{
+    printf("Not a known pin for pi-blaster");
+  }
 }
 
 // Releases the PWM pin requested (if found and valid) and updates the calls
 // update_pwm to apply the changes to the actual hardware pins.
 static void
 release_pwm(int pin){
-	release_pin(pin);
-	update_pwm();
+  release_pin(pin);
+  update_pwm();
 }
 
 
 // Set pin2gpio pins, channel width and update the pwm send to pins being used.
-	static void
+static void
 set_pwm(int channel, float width)
 {
-	set_pin(channel, width);
-	update_pwm();
+  set_pin(channel, width);
+  update_pwm();
 }
 
 /*
@@ -397,7 +396,7 @@ set_pwm(int channel, float width)
  * We dont really need to reset the cb->dst each time but I believe it helps a lot
  * in code readability in case someone wants to generate more complex signals.
  */
-	static void
+static void
 update_pwm()
 {
 
@@ -417,7 +416,7 @@ update_pwm()
 	/*   Now create a mask of all the pins that should be on */
 	mask = 0;
 	for (i = 0; i < NUM_CHANNELS; i++) {
-		// Check the pin2gpio pin has been set to avoid locking all of them as PWM.
+    // Check the pin2gpio pin has been set to avoid locking all of them as PWM.
 		if (channel_pwm[i] > 0 && pin2gpio[i]) {
 			mask |= 1 << pin2gpio[i];
 		}
@@ -433,7 +432,7 @@ update_pwm()
 			ctl->cb[j*2].dst = phys_gpclr0;
 		mask = 0;
 		for (i = 0; i < NUM_CHANNELS; i++) {
-			// Check the pin2gpio pin has been set to avoid locking all of them as PWM.
+      // Check the pin2gpio pin has been set to avoid locking all of them as PWM.
 			if ((float)j/NUM_SAMPLES > channel_pwm[i] && pin2gpio[i])
 				mask |= 1 << pin2gpio[i];
 		}
@@ -441,7 +440,7 @@ update_pwm()
 	}
 }
 
-	static void
+static void
 make_pagemap(void)
 {
 	int i, fd, memfd, pid;
@@ -459,7 +458,7 @@ make_pagemap(void)
 	if (fd < 0)
 		fatal("pi-blaster: Failed to open %s: %m\n", pagemap_fn);
 	if (lseek(fd, (uint32_t)virtbase >> 9, SEEK_SET) !=
-			(uint32_t)virtbase >> 9) {
+						(uint32_t)virtbase >> 9) {
 		fatal("pi-blaster: Failed to seek on %s: %m\n", pagemap_fn);
 	}
 	for (i = 0; i < NUM_PAGES; i++) {
@@ -477,7 +476,7 @@ make_pagemap(void)
 	close(memfd);
 }
 
-	static void
+static void
 setup_sighandlers(void)
 {
 	int i;
@@ -493,7 +492,7 @@ setup_sighandlers(void)
 	}
 }
 
-	static void
+static void
 init_ctrl_data(void)
 {
 	struct ctl *ctl = (struct ctl *)virtbase;
@@ -514,8 +513,8 @@ init_ctrl_data(void)
 	// Calculate a mask to turn off all the servos
 	mask = 0;
 	for (i = 0; i < NUM_CHANNELS; i++){
-		mask |= 1 << known_pins[i];
-	}
+    mask |= 1 << known_pins[i];
+  }
 	for (i = 0; i < NUM_SAMPLES; i++)
 		ctl->sample[i] = mask;
 
@@ -552,7 +551,7 @@ init_ctrl_data(void)
 	cbp->next = mem_virt_to_phys(ctl->cb);
 }
 
-	static void
+static void
 init_hardware(void)
 {
 	struct ctl *ctl = (struct ctl *)virtbase;
@@ -610,20 +609,20 @@ init_hardware(void)
 	}
 }
 
-	static void
+static void
 init_pin2gpio(void)
 {
-	int i;
-	for (i = 0; i < NUM_CHANNELS; i++)
-		pin2gpio[i] = 0;
+  int i;
+  for (i = 0; i < NUM_CHANNELS; i++)
+    pin2gpio[i] = 0;
 }
 
 static void
 init_pwm(void){
-	update_pwm();
+  update_pwm();
 }
 
-	static void
+static void
 init_channel_pwm(void)
 {
 	int i;
@@ -631,7 +630,7 @@ init_channel_pwm(void)
 		channel_pwm[i] = 0;
 }
 
-	static void
+static void
 go_go_go(void)
 {
 	FILE *fp;
@@ -652,14 +651,13 @@ go_go_go(void)
 		n = sscanf(lineptr, "%d=%f%c", &servo, &value, &nl);
 		if (n !=3 || nl != '\n') {
 			//fprintf(stderr, "Bad input: %s", lineptr);
-			n = sscanf(lineptr, "release %d", &servo);
-			if (n != 1 || nl != '\n') {
-				fprintf(stderr, "Bad input: %s", lineptr);
-			} else {
-				// Release Pin from pin2gpio array if the release command is received.
-				fprintf(stdout,"Releasing pin %d\n", &servo);
-				release_pwm(servo);
-			}
+      n = sscanf(lineptr, "release %d", &servo);
+      if (n != 1 || nl != '\n') {
+        fprintf(stderr, "Bad input: %s", lineptr);
+      } else {
+        // Release Pin from pin2gpio array if the release command is received.
+        release_pwm(servo);
+      }
 		} else if (servo < 0){ // removed servo validation against CHANNEL_NUM no longer needed since now we used real GPIO names
 			fprintf(stderr, "Invalid channel number %d\n", servo);
 		} else if (value < 0 || value > 1) {
@@ -670,7 +668,7 @@ go_go_go(void)
 	}
 }
 
-	void
+void
 parseargs(int argc, char **argv)
 {
 	int index;
@@ -696,43 +694,43 @@ parseargs(int argc, char **argv)
 
 		switch (c)
 		{
-			case 0:
-				/* handle flag options (array's 3rd field non-0) */
-				break;
+		case 0:
+			/* handle flag options (array's 3rd field non-0) */
+			break;
 
-			case 'h':
-				fprintf(stderr, "%s version %s\n", argv[0], VERSION);
-				fprintf(stderr, "Usage: %s [-hipv]\n"
-						"-h (--help)    - this information\n"
-						"-i (--invert)  - invert pin output (pulse LOW)\n"
-						"-p (--pcm)     - use pcm for dmascheduling\n"
-						"-v (--version) - version information\n"
-						, argv[0]);
-				exit(-1);
+		case 'h':
+			fprintf(stderr, "%s version %s\n", argv[0], VERSION);
+			fprintf(stderr, "Usage: %s [-hipv]\n"
+				"-h (--help)    - this information\n"
+				"-i (--invert)  - invert pin output (pulse LOW)\n"
+				"-p (--pcm)     - use pcm for dmascheduling\n"
+				"-v (--version) - version information\n"
+				, argv[0]);
+			exit(-1);
 
-			case 'i':
-				invert_mode = 1;
-				break;
+		case 'i':
+			invert_mode = 1;
+			break;
 
-			case 'p':
-				delay_hw = DELAY_VIA_PCM;
-				break;
+		case 'p':
+			delay_hw = DELAY_VIA_PCM;
+			break;
 
-			case 'v':
-				fprintf(stderr, "%s version %s\n", argv[0], VERSION);
-				exit(-1);
+		case 'v':
+			fprintf(stderr, "%s version %s\n", argv[0], VERSION);
+			exit(-1);
 
-			case '?':
-				/* getopt_long already reported error? */
-				exit(-1);
+		case '?':
+			/* getopt_long already reported error? */
+			exit(-1);
 
-			default:
-				exit(-1);
+		default:
+			exit(-1);
 		}
 	}
 }
 
-	int
+int
 main(int argc, char **argv)
 {
 	parseargs(argc, argv);
@@ -765,10 +763,10 @@ main(int argc, char **argv)
 	init_ctrl_data();
 	init_hardware();
 	init_channel_pwm();
-	// Init pin2gpio array with 0/false values to avoid locking all of them as PWM.
+  // Init pin2gpio array with 0/false values to avoid locking all of them as PWM.
 	init_pin2gpio();
-	// Only calls update_pwm after ctrl_data calculates the pin mask to unlock all pins on start.
-	init_pwm();
+  // Only calls update_pwm after ctrl_data calculates the pin mask to unlock all pins on start.
+  init_pwm();
 
 	unlink(DEVFILE);
 	if (mkfifo(DEVFILE, 0666) < 0)
