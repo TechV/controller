@@ -793,9 +793,13 @@ servo_max_ticks = DEFAULT_SERVO_MAX_US / step_time_us;
 	printf("Maximum width value:       %7d (%dus)\n", servo_max_ticks,
 						servo_max_ticks * step_time_us);
 	printf("Output levels:            %s\n", invert ? "Inverted" : "  Normal");
+	for (i = 0; i < MAX_SERVOS; i++) {
+		if (servo2gpio[i] == DMY)
+			continue;
+		printf("    %2d on %-5s          GPIO-%d\n", i, gpio2pinname(servo2gpio[i]), servo2gpio[i]);
+	}
 	printf("\n");
 
-	init_idle_timers();
 	setup_sighandlers();
 
 	if ((dma_reg = map_peripheral(DMA_BASE, DMA_LEN)) == (void *) -1) {
