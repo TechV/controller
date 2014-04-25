@@ -7,10 +7,8 @@
 #include <error.h>
 
 #include "ps3controller.h"
-#include "../receiver.h"
+#include "interface.h"
 
-
-struct s_rec rec;
 
 static struct js_event js_e;
 static int fd = 0;
@@ -39,7 +37,7 @@ void process_jsevent(struct js_event *e) {
 	if (e->type==JS_EVENT_BUTTON) {
 		printf("B %2u VAL: %4i\n",e->number,e->value);
 	}
-	if (e->type==JS_EVENT_AXIS) {
+	if ((e->type==JS_EVENT_AXIS) && (e->number<4)) {
 		printf("A %2u VAL: %4i\n",e->number,e->value);
 		rec.yprt[0] = map(e->value,-255,255,-45,45);
 		rec.yprt[1] = map(e->value,-255,255,-45,45);
@@ -64,11 +62,12 @@ int rec_update() {
 		return -1;
 	}
 
-        clock_gettime(CLOCK_REALTIME, &rec.t);
+        clock_gettime(CLOCK_REALTIME, &rec.ts);
 
-	rec.ypr[0] = 0;
-	rec.ypr[1] = 0;
-	rec.ypr[2] = 0;
+	//rec.yprt[0] = 0;
+	//rec.yprt[1] = 0;
+	//rec.yprt[2] = 0;
+	//rec.yprt[3] = 0;
 
         pthread_mutex_unlock( &rec.mutex );
 	return 0;

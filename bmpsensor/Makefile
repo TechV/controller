@@ -1,12 +1,12 @@
 CXX=g++
 AR=ar
 CXXFLAGS=-Wall -g -O2
-CXX_OPTS=-c -I../libs/ 
+CXX_OPTS=-I../libs/ -c -DBMP_DEBUGO
 
-SOURCES=blaster.c
+SOURCES=bmp180.c
 OBJECTS=$(SOURCES:.c=.o)
 
-LIB=libspeedcontroller.a
+LIB=libbs.a
 
 %.o: %.c
 	$(CXX) $(CXXFLAGS) $(CXX_OPTS) $< -o $@ 

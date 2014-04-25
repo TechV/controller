@@ -7,10 +7,15 @@
 #include <pthread.h>
 
 #include "helper_3dmath.h"
-#include "../motionsensor.h"
+#include "interface.h"
 #include "inv_mpu_lib/inv_mpu.h"
 #include "inv_mpu_lib/inv_mpu_dmp_motion_driver.h"
 #include "mpu6050.h"
+
+#define YAW 0
+#define PITCH 1
+#define ROLL 2
+#define DIM 3
 
 #define wrap_180(x) (x < -180 ? x+360 : (x > 180 ? x - 360: x))
 #define delay_ms(a)    usleep(a*1000)
@@ -19,12 +24,10 @@ static int16_t a[3];              // [x, y, z]            accel vector
 static int16_t g[3];              // [x, y, z]            gyro vector
 static int32_t _q[4];
 static Quaternion q; 
-static int32_t t;
-static int16_t c[3];
 static VectorFloat gravity;    // [x, y, z]            gravity vector
 
 
-static int r;
+static int r=0;
 static int initialized = 0;
 static int dmpReady = 0;
 static int16_t sensors;
@@ -32,8 +35,6 @@ static uint8_t devStatus;      // return status after each device operation
 static uint8_t fifoCount;     // count of all bytes currently in FIFO
 
 
-
-struct s_ms ms;
 
 uint8_t rate = 100;
 
@@ -43,8 +44,9 @@ int ms_open() {
 
 	// initialize device
 	printf("Initializing MPU...\n");
-	if (mpu_init(NULL) != 0) {
-		printf("MPU init failed!\n");
+	r=mpu_init(NULL); 
+	if (r != 0) {
+		printf("MPU init failed! %i\n",r);
 		return -1;
 	}
 	printf("Setting MPU sensors...\n");
@@ -77,7 +79,7 @@ int ms_open() {
 	// load and configure the DMP
 	printf("Loading DMP firmware...\n");
 	if (dmp_load_motion_driver_firmware()!=0) {
-		printf("Failed to enable DMP!\n");
+		printf("Failed to load DMP firmware!\n");
 		return -1;
 	}
 
@@ -129,7 +131,7 @@ int ms_update() {
 
 
 	pthread_mutex_lock( &ms.mutex );
-	clock_gettime(CLOCK_REALTIME, &ms.t);
+	clock_gettime(CLOCK_REALTIME, &ms.ts);
 	q = _q;
 	GetGravity(&gravity, &q);
 	GetYawPitchRoll(ms.ypr, &q, &gravity);
@@ -137,7 +139,7 @@ int ms_update() {
 
 	//scaling for degrees output
 	for (int i=0;i<DIM;i++){
-		ms.ypr[DIM]*=180/M_PI;
+		ms.ypr[i]*=180/M_PI;
 	}
 
 	//unwrap yaw when it reaches 180

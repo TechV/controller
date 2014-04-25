@@ -38,7 +38,7 @@
  */
 #define min(a,b) ((a)<(b)?(a):(b))
 #define i2c_write   writeBytes
-#define i2c_read    readBytes
+#define i2c_read(a,b,c,d)    (readBytes(a,b,c,d)!=-1?0:1)
 #define delay_ms(a)    usleep(a*1000)
 #define printf_P	printf
 
@@ -689,13 +689,13 @@ uint8_t mpu_init(struct int_param_s *int_param)
 #if defined MPU_DEBUG
 			printf_P("Unsupported software product rev. %d.\r\n", rev);
 #endif
-			return 1;
+			return 2;
 		}
 	}
 	else
 	{
 		if (i2c_read(st.hw->addr, st.reg->prod_id, 1, data))
-			return 1;
+			return 3;
 		rev = data[0] & 0x0F;
 		if (!rev)
 		{
@@ -703,7 +703,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 			printf_P("Product ID read as 0 indicates device is either "
 						"incompatible or an MPU3050.\r\n");
 #endif
-			return 1;
+			return 4;
 		}
 		else if (rev == 4)
 		{
@@ -718,7 +718,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 #elif defined MPU6500
 #define MPU6500_MEM_REV_ADDR    (0x17)
 	if (mpu_read_mem(MPU6500_MEM_REV_ADDR, 1, &rev))
-		return 1;
+		return 5;
 	if (rev == 0x1)
 		st.chip_cfg.accel_half = 0;
 	else
@@ -726,7 +726,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 #if defined MPU_DEBUG
 		printf_P("Unsupported software product rev. %d.\r\n", rev);
 #endif
-		return 1;
+		return 6;
 	}
 
 	/* MPU6500 shares 4kB of memory between the DMP and the FIFO. Since the
@@ -734,7 +734,7 @@ uint8_t mpu_init(struct int_param_s *int_param)
 	 */
 	data[0] = BIT_FIFO_SIZE_1024 | 0x8;
 	if (i2c_write(st.hw->addr, st.reg->accel_cfg2, 1, data))
-		return 1;
+		return 7;
 #endif
 
 	/* Set to invalid values to ensure no I2C writes are skipped. */
@@ -761,15 +761,15 @@ uint8_t mpu_init(struct int_param_s *int_param)
 	st.chip_cfg.dmp_sample_rate = 0;
 
 	if (mpu_set_gyro_fsr(2000))
-		return 1;
+		return 8;
 	if (mpu_set_accel_fsr(2))
-		return 1;
+		return 9;
 	if (mpu_set_lpf(42))
-		return 1;
+		return 10;
 	if (mpu_set_sample_rate(50))
-		return 1;
+		return 11;
 	if (mpu_configure_fifo(0))
-		return 1;
+		return 12;
 
 	/* if (int_param)
 	    reg_int_cb(int_param); */
@@ -777,11 +777,11 @@ uint8_t mpu_init(struct int_param_s *int_param)
 #ifdef AK89xx_SECONDARY
 	setup_compass();
 	if (mpu_set_compass_sample_rate(10))
-		return 1;
+		return 13;
 #else
 	/* Already disabled by setup_compass. */
 	if (mpu_set_bypass(0))
-		return 1;
+		return 14;
 #endif
 
 	mpu_set_sensors(0);
@@ -1248,8 +1248,10 @@ uint8_t mpu_set_lpf(uint16_t lpf)
 {
 	uint8_t data;
 
+printf("X1\n");
 	if (!(st.chip_cfg.sensors))
 		return 1;
+printf("X2\n");
 
 	if (lpf >= 188)
 		data = INV_FILTER_188HZ;
@@ -1264,10 +1266,13 @@ uint8_t mpu_set_lpf(uint16_t lpf)
 	else
 		data = INV_FILTER_5HZ;
 
+printf("X3\n");
 	if (st.chip_cfg.lpf == data)
 		return 0;
+printf("X4\n");
 	if (i2c_write(st.hw->addr, st.reg->lpf, 1, &data))
 		return 1;
+printf("X5\n");
 	st.chip_cfg.lpf = data;
 	return 0;
 }
@@ -1729,9 +1734,13 @@ uint8_t mpu_read_fifo_stream(uint16_t length, uint8_t *data,
 	uint8_t tmp[2];
 	uint16_t fifo_count;
 	if (!st.chip_cfg.dmp_on)
+    {
 		return 1;
+    }
 	if (!st.chip_cfg.sensors)
+    {
 		return 1;
+    }
 
 	if (i2c_read(st.hw->addr, st.reg->fifo_count_h, 2, tmp))
 		return 1;
@@ -1752,6 +1761,9 @@ uint8_t mpu_read_fifo_stream(uint16_t length, uint8_t *data,
 			return 2;
 		}
 	}
+#if defined MPU_DEBUG
+    printf_P("FIFO count: %hd\r\n", fifo_count);
+#endif
 
 	if (i2c_read(st.hw->addr, st.reg->fifo_r_w, length, data))
 		return 1;

@@ -1,5 +1,5 @@
-#ifndef _SPEEDCONTROLLER_H_
-#define _SPEEDCONTROLLER_H_
+#ifndef _SPEEDCONTROLLER_INT_H_
+#define _SPEEDCONTROLLER_INT_H_
 
 extern int sc_open();
 

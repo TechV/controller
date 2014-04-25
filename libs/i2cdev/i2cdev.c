@@ -342,6 +342,7 @@ int writeBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t* data) 
     uint8_t buf[128];
     int fd;
 
+//printf("Y1 %#x %#x %u %#x\n",devAddr,regAddr,length, *data);
     if (length > 127) {
         fprintf(stderr, "Byte write count (%d) > 127\n", length);
         return -1;

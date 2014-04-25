@@ -41,6 +41,7 @@
 #include <sys/mman.h>
 #include <getopt.h>
 #include <math.h>
+#include "interface.h"
 
 #define DMY	255	// Used to represent an invalid P1 pin, or unmapped servo
 
@@ -149,6 +150,7 @@ typedef struct {
  * parameter '--p1pins=...'.
  */
 
+static const int board_rev = 2;
 static char *default_p1_pins = "7,11,12,13,15,16,18,22";
 static char *default_p5_pins = "";
 
@@ -268,7 +270,6 @@ static int delay_hw = DELAY_VIA_PWM;
 static struct timeval *servo_kill_time;
 
 static int dma_chan;
-static int idle_timeout;
 static int invert = 0;
 static int servo_min_ticks;
 static int servo_max_ticks;
@@ -369,7 +370,7 @@ static void *
 map_peripheral(uint32_t base, uint32_t len)
 {
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
-	void * vaddr = NULL;
+	void * vaddr = (void*)-1;
 
 	if (fd < 0) {
 		fatal("servod: Failed to open /dev/mem: %m\n");
@@ -446,7 +447,6 @@ set_servo(int servo, int width) /* width in number of steps */
 	} else {
 		turnon_mask[servo] = mask;
 	}
-	update_idle_time(servo);
 }
 
 static int
@@ -455,7 +455,7 @@ make_pagemap(void)
 	int i, fd, memfd, pid;
 	char pagemap_fn[64];
 
-	page_map = malloc(num_pages * sizeof(*page_map));
+	page_map = (page_map_t *)malloc(num_pages * sizeof(*page_map));
 	if (page_map == 0) {
 		fatal("servod: Failed to malloc page_map: %m\n");
 		return -1;
@@ -674,7 +674,7 @@ parse_pin_lists(int p1first, char *p1pins, char*p5pins)
 		if (lst == 0 && p1first) {
 			name = "P1";
 			pins = p1pins;
-			if (board_rev() == 1) {
+			if (board_rev == 1) {
 				map = rev1_p1pin2gpio_map;
 				mapcnt = sizeof(rev1_p1pin2gpio_map);
 			} else {
@@ -685,7 +685,7 @@ parse_pin_lists(int p1first, char *p1pins, char*p5pins)
 		} else {
 			name = "P5";
 			pins = p5pins;
-			if (board_rev() == 1) {
+			if (board_rev == 1) {
 				map = rev1_p5pin2gpio_map;
 				mapcnt = sizeof(rev1_p5pin2gpio_map);
 			} else {
@@ -729,13 +729,13 @@ parse_pin_lists(int p1first, char *p1pins, char*p5pins)
 	return 0;
 }
 
-void sc_update(int servo, int width) {
+int sc_update(int servo, int width) {
 	//if in us -> width /= step_time_us;
 	//otherwise in steps
 	set_servo(servo, width);
 }
 
-void sc_close() {
+int sc_close() {
 
 }
 
@@ -802,21 +802,20 @@ servo_max_ticks = DEFAULT_SERVO_MAX_US / step_time_us;
 
 	setup_sighandlers();
 
-	if ((dma_reg = map_peripheral(DMA_BASE, DMA_LEN)) == (void *) -1) {
+	if ((dma_reg = (uint32_t*)map_peripheral(DMA_BASE, DMA_LEN)) == (void *) -1) {
 		return -1;
 	}
-	
 	dma_reg += dma_chan * DMA_CHAN_SIZE / sizeof(uint32_t);
-	if ((pwm_reg = map_peripheral(PWM_BASE, PWM_LEN)) == (void *) -1) {
+	if ((pwm_reg = (uint32_t*)map_peripheral(PWM_BASE, PWM_LEN)) == (void *) -1) {
 		return -1;
 	}
-	if ((pcm_reg = map_peripheral(PCM_BASE, PCM_LEN)) == (void *) -1) {
+	if ((pcm_reg = (uint32_t*)map_peripheral(PCM_BASE, PCM_LEN)) == (void *) -1) {
 		return -1;
 	}
-	if ((clk_reg = map_peripheral(CLK_BASE, CLK_LEN) == (void *) -1) {
+	if ((clk_reg = (uint32_t*)map_peripheral(CLK_BASE, CLK_LEN)) == (void *) -1) {
 		return -1;
 	}
-	if ((gpio_reg = map_peripheral(GPIO_BASE, GPIO_LEN)) == (void *) -1) {
+	if ((gpio_reg = (uint32_t*)map_peripheral(GPIO_BASE, GPIO_LEN)) == (void *) -1) {
 		return -1;
 	}
 
@@ -833,7 +832,7 @@ servo_max_ticks = DEFAULT_SERVO_MAX_US / step_time_us;
 	 * via this second coherent mapping.  The memset() below forces the
 	 * pages to be allocated.
 	 */
-	virtcached = mmap(NULL, num_pages * PAGE_SIZE, PROT_READ|PROT_WRITE,
+	virtcached = (uint8_t*)mmap(NULL, num_pages * PAGE_SIZE, PROT_READ|PROT_WRITE,
 			MAP_SHARED|MAP_ANONYMOUS|MAP_NORESERVE|MAP_LOCKED,
 			-1, 0);
 	if (virtcached == MAP_FAILED) {
@@ -847,7 +846,7 @@ servo_max_ticks = DEFAULT_SERVO_MAX_US / step_time_us;
 	
 	memset(virtcached, 0, num_pages * PAGE_SIZE);
 
-	virtbase = mmap(NULL, num_pages * PAGE_SIZE, PROT_READ|PROT_WRITE,
+	virtbase = (uint8_t*)mmap(NULL, num_pages * PAGE_SIZE, PROT_READ|PROT_WRITE,
 			MAP_SHARED|MAP_ANONYMOUS|MAP_NORESERVE|MAP_LOCKED,
 			-1, 0);
 	if (virtbase == MAP_FAILED) {
