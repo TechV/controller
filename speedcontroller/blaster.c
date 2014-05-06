@@ -54,9 +54,9 @@
 #define MAX_MEMORY_USAGE	(16*1024*1024)	/* Somewhat arbitrary limit of 16MB */
 
 #define DEFAULT_CYCLE_TIME_US	20000
-#define DEFAULT_STEP_TIME_US	10
-#define DEFAULT_SERVO_MIN_US	500
-#define DEFAULT_SERVO_MAX_US	2500
+#define DEFAULT_STEP_TIME_US	5
+#define DEFAULT_SERVO_MIN_US	1000
+#define DEFAULT_SERVO_MAX_US	2000
 
 #define PAGE_SIZE		4096
 #define PAGE_SHIFT		12
@@ -283,7 +283,6 @@ static dma_cb_t *cb_base;
 static void set_servo(int servo, int width);
 static void set_servo_idle(int servo);
 static void gpio_set_mode(uint32_t gpio, uint32_t mode);
-static char *gpio2pinname(uint8_t gpio);
 
 static void
 udelay(int us)
@@ -732,11 +731,11 @@ parse_pin_lists(int p1first, char *p1pins, char*p5pins)
 int sc_update(int servo, int width) {
 	//if in us -> width /= step_time_us;
 	//otherwise in steps
-	set_servo(servo, width);
+	set_servo(servo, width / step_time_us);
 }
 
 int sc_close() {
-
+	cleanup();
 }
 
 int sc_open()
@@ -796,7 +795,7 @@ servo_max_ticks = DEFAULT_SERVO_MAX_US / step_time_us;
 	for (i = 0; i < MAX_SERVOS; i++) {
 		if (servo2gpio[i] == DMY)
 			continue;
-		printf("    %2d on %-5s          GPIO-%d\n", i, gpio2pinname(servo2gpio[i]), servo2gpio[i]);
+		printf("    %2d          GPIO-%d\n", i, servo2gpio[i]);
 	}
 	printf("\n");
 

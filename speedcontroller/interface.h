@@ -3,7 +3,7 @@
 
 extern int sc_open();
 
-extern int sc_update(int s, float v);
+extern int sc_update(int s, int w);
 
 extern int sc_close();
 

@@ -1,7 +1,6 @@
 #ifndef _RECEIVER_INT_H_
 #define _RECEIVER_INT_H_
 
-#include <pthread.h>
 
 /*
 #define YAW 0
@@ -13,8 +12,7 @@
 
 struct s_rec {
         float yprt[4];
-        struct timespec ts;
-        pthread_mutex_t mutex;
+	int aux;
 };
 
 extern struct s_rec rec;

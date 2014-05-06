@@ -23,8 +23,9 @@
 #include "bmp180.h"
 #include "i2cdev/i2cdev.h"
 
-#define OVERSAMPLING 1 //oversampling_setting
-#define PRESSURE_DELAY 7500 //ms
+#define OVERSAMPLING 3 //oversampling_setting
+#define PRESSURE_DELAY 25500 //us
+#define TEMPERATURE_DELAY 4500 //us
 #define delay_ms(a)    usleep(a*1000)
 
 #define BMP180_ADDR 0x77 // 7-bit address
@@ -38,6 +39,9 @@
 #define BMP180_COMMAND_PRESSURE2 0xB4
 #define BMP180_COMMAND_PRESSURE3 0xF4
 
+static int state = 0;
+static unsigned long dt;
+
 static struct s_cc {
 	short AC1,AC2,AC3,B1,B2,MB,MC,MD;
 	unsigned short AC4,AC5,AC6;
@@ -47,58 +51,11 @@ static struct s_cc {
 
 static int ret = 0;
 
-#define BUF_SIZE 100
-static long buffer[BUF_SIZE];
-static long *buf_ptr = buffer;
-
-
-//KalmanCalc() - Calculates new Kalman values from float value "altitude"
- //Kalman Variables 
-float f_1=1.00000; 
-float kalman_x;
-float kalman_x_last;
-float kalman_p;
-float kalman_p_last;
-float kalman_k;
-float kalman_q;
-float kalman_r;
-float kalman_x_temp;
-float kalman_p_temp;
-
-void KalmanInit()
-{
-   kalman_q=4.0001f; //filter parameters, you can play around with them
-   kalman_r=.20001f; // but these values appear to be fairly optimal
-
-   kalman_x = 0;
-   kalman_p = 0;
-   kalman_x_temp = 0;
-   kalman_p_temp = 0;
-   
-   kalman_x_last = 0;
-   kalman_p_last = 0;
-      
-}
-
-float KalmanCalc (float altitude)
- {
-   
-   //Predict kalman_x_temp, kalman_p_temp
-   kalman_x_temp = kalman_x_last;
-   kalman_p_temp = kalman_p_last + kalman_r;
-   
-   //Update kalman values
-   kalman_k = (f_1/(kalman_p_temp + kalman_q)) * kalman_p_temp;
-   kalman_x = kalman_x_temp + (kalman_k * (altitude - kalman_x_temp));
-   kalman_p = (f_1 - kalman_k) * kalman_p_temp;
-   
-   //Save this state for next time
-   kalman_x_last = kalman_x;
-   kalman_p_last = kalman_p;
-   
-      
-  return kalman_x;
- } 
+#define BUF_SIZE 50
+static long p_buffer[BUF_SIZE];
+static long t_buffer[BUF_SIZE];
+static long *p_buf_ptr = p_buffer;
+static long *t_buf_ptr = t_buffer;
 
 
 int bs_open()
@@ -168,15 +125,29 @@ int bs_open()
 		// Compute floating-point polynominals:
 
 		// Success!
-		KalmanInit();
 		for (int i=0;i<BUF_SIZE;i++) {
-		ret=bs_update();
-		if (ret<0) {
-			printf("BMP: Failed to get an update (%i)!\n",ret);
-			return ret;
-		}
+			prepareTemperature();
+			usleep(TEMPERATURE_DELAY);
+			ret = getTemperature(bs.t);
+			if (ret<0) {
+				printf("Error temp!\n");
+				return 100+ret;
+			}
+			preparePressure(OVERSAMPLING); //need to wait at least 20ms?? see datasheet
+			usleep(PRESSURE_DELAY);
+			ret = getPressure(bs.p);
+			if (ret<0) {
+				printf("Error press!\n");
+				return 200+ret;
+			}
+			bs.alt = altitude(bs.p, bs.p0); 
 		}
 		bs.p0 = bs.p;
+
+		preparePressure(OVERSAMPLING); //need to wait at least 20ms?? see datasheet
+		usleep(PRESSURE_DELAY);
+		state = 0;
+		dt = 0;
 
 		return(0);
 	}
@@ -188,28 +159,26 @@ int bs_open()
 	}
 }
 
-int bs_update() {
-	pthread_mutex_lock( &bs.mutex );
-	prepareTemperature();
-	usleep(4500);
-	ret = getTemperature(bs.t);
-	if (ret<0) {
-		pthread_mutex_unlock( &bs.mutex );
-		printf("Error temp!\n");
-		return 100+ret;
-	}
-	preparePressure(OVERSAMPLING); //need to wait at least 20ms?? see datasheet
-	usleep(PRESSURE_DELAY);
-	ret = getPressure(bs.p);
-	if (ret<0) {
-		pthread_mutex_unlock( &bs.mutex );
-		printf("Error press!\n");
-		return 200+ret;
-	}
-	bs.alt = altitude(bs.p, bs.p0); 
+int bs_update(unsigned long t_ms) {
 
-        clock_gettime(CLOCK_REALTIME, &bs.ts);
-	pthread_mutex_unlock( &bs.mutex );
+	if (state==0 && (t_ms-dt)>(2*PRESSURE_DELAY/1000)) {
+		dt = t_ms;
+		state = 1;
+		if (getPressure(bs.p)<0)
+			printf("error getting pressure\n");
+		bs.alt = altitude(bs.p, bs.p0); 
+		if (prepareTemperature()<0)
+			printf("error setting temp\n");
+	}
+	if (state == 1 && (t_ms-dt)>(2*TEMPERATURE_DELAY/1000))  {
+		if (getTemperature(bs.t)<0)
+			printf("error getting temp\n");
+		if (preparePressure(OVERSAMPLING)<0) 
+			printf("error setting pressure\n");
+		dt = t_ms;
+		state = 0;
+	}
+
 	return 0;
 }
 
@@ -233,6 +202,7 @@ static int getTemperature(float &T)
 {
 	unsigned char data[2];
 	long tu;
+	long t;
 	
 	data[0] = BMP180_REG_RESULT;
 
@@ -244,8 +214,15 @@ static int getTemperature(float &T)
 		cc.X1 = ((tu - cc.AC6) * cc.AC5) >> 15;
 		cc.X2 = (cc.MC << 11) / (cc.X1 + cc.MD);
 		cc.B5 = cc.X1 + cc.X2;
-		T = ((cc.B5 + 8) >> 4)/10.0f;
+		t = ((cc.B5 + 8) >> 4);
+                *t_buf_ptr = t;
+                if (t_buf_ptr-t_buffer==(BUF_SIZE-1)) t_buf_ptr=t_buffer;
+                else t_buf_ptr++;
 
+                long c = 0l;
+                for (int i=0;i<BUF_SIZE;i++) c+=t_buffer[i];
+                c/=BUF_SIZE;
+		T = c/10.0f;
 #ifdef BMP_DEBUG
 		printf("tu: %5.3f\ta: %5.3f\tT:%5.3f\n",tu,a,T);
 #endif
@@ -324,12 +301,12 @@ static int getPressure(float &P)
 		cc.X1 = (cc.X1*3038)>>16;
 		cc.X2 = (-7357*p)>>16;
 		p = p + ((cc.X1+cc.X2+3791)>>4);
-		*buf_ptr = p;
-		if (buf_ptr-buffer==(BUF_SIZE-1)) buf_ptr=buffer;
-		else buf_ptr++;
+		*p_buf_ptr = p;
+		if (p_buf_ptr-p_buffer==(BUF_SIZE-1)) p_buf_ptr=p_buffer;
+		else p_buf_ptr++;
 		
 		long c = 0l;
-		for (int i=0;i<BUF_SIZE;i++) c+=buffer[i];
+		for (int i=0;i<BUF_SIZE;i++) c+=p_buffer[i];
 		c/=BUF_SIZE;
 		P = (float)c;
 		//P = c/100.0f;
@@ -354,7 +331,7 @@ static float altitude(float P, float P0)
 // Given a pressure measurement P (mb) and the pressure at a baseline P0 (mb),
 // return altitude (meters) above baseline.
 {
-	return KalmanCalc(44330.0f*(1.0f-pow(P/P0,1.0f/5.255f)));
+	return round(10.0f*44330.0f*(1.0f-pow(P/P0,1.0f/5.255f)))/10.0f;
 }
 
 

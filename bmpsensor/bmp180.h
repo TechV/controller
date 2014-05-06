@@ -19,20 +19,17 @@
 #ifndef BMP180_h
 #define BMP180_h
 
-#include <pthread.h>
 #include "interface.h"
 
 struct s_bs bs = {
 	.t = 1.0f,
 	.p = 1.0f,
 	.p0 = 1.0f,
-	.alt = 1.0f,
-	.ts = {0},
-	.mutex = PTHREAD_MUTEX_INITIALIZER
+	.alt = 1.0f
 };
 
 int bs_open();
-int bs_update();
+int bs_update(unsigned long t_ms);
 int bs_close();
 
 static int bsWriteBytes(unsigned char *values, char length);

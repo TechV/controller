@@ -1248,10 +1248,8 @@ uint8_t mpu_set_lpf(uint16_t lpf)
 {
 	uint8_t data;
 
-printf("X1\n");
 	if (!(st.chip_cfg.sensors))
 		return 1;
-printf("X2\n");
 
 	if (lpf >= 188)
 		data = INV_FILTER_188HZ;
@@ -1266,13 +1264,10 @@ printf("X2\n");
 	else
 		data = INV_FILTER_5HZ;
 
-printf("X3\n");
 	if (st.chip_cfg.lpf == data)
 		return 0;
-printf("X4\n");
 	if (i2c_write(st.hw->addr, st.reg->lpf, 1, &data))
 		return 1;
-printf("X5\n");
 	st.chip_cfg.lpf = data;
 	return 0;
 }
@@ -1996,6 +1991,7 @@ AKM_restore:
 	tmp[0] = SUPPORTS_AK89xx_HIGH_SENS;
 	i2c_write(st.chip_cfg.compass_addr, AKM_REG_CNTL, 1, tmp);
 	mpu_set_bypass(0);
+	printf("CST: %i\n",result);
 	return result;
 }
 #endif

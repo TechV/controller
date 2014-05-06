@@ -1,27 +1,30 @@
 CXX=g++
 CXXFLAGS= -Wall -g -O2
-CXX_OPTS= -Wall -g -O2
+CXX_OPTS= -Wall -g -O2 $(CXXFLAGS_FOR_BUILD)
 LDFLAGS=-lpthread -pthread
-LD_OPTS=-lpthread -pthread
+LD_OPTS=-lpthread -lxenomai -lrt -lnative
 
 PROG=controller
 
 INSTALL=install
 
 %.o: %.c                                                                         
-	$(CXX) $(CXXFLAGS) $(CXX_OPTS) $< -o $@ 
+	$(CXX) -c $(CXXFLAGS) $(CXX_OPTS) $< -o $@ 
 
 
 all: controller.o 
-	$(CXX) $(CXXFLAGS) $(LD_OPTS) -o $(PROG) \
+	$(CXX) $(CXXFLAGS) $(CXX_OPTS) $(LD_OPTS) -o $(PROG) \
 		main.c \
+		pid.o \
+		flightlog.o \
+		config.o \
 		motionsensor/libmotionsensor.a \
 		receiver/libreceiver.a \
 		speedcontroller/libspeedcontroller.a \
 		bmpsensor/libbs.a \
 		libs/libi2cdev.a
 
-controller.o: motionsensor/libmotionsensor.a receiver/libreceiver.a speedcontroller/libspeedcontroller.a bmpsensor/libbs.a libs/libi2cdev.a
+controller.o: pid.o flightlog.o config.o motionsensor/libmotionsensor.a receiver/libreceiver.a speedcontroller/libspeedcontroller.a bmpsensor/libbs.a libs/libi2cdev.a
 
 speedcontroller/libspeedcontroller.a:
 	$(MAKE) -C speedcontroller/ 

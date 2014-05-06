@@ -1,13 +1,10 @@
 #ifndef _MOTION_SENSOR_INT_H_
 #define _MOTION_SENSOR_INT_H_
 
-#include <pthread.h>
-
 struct s_ms {
 	float ypr[3];
-	float gypro[3];
-	struct timespec ts;
-	pthread_mutex_t mutex; 
+	float gyro[3];
+	float c[3]; //compass
 };
 
 extern struct s_ms ms;

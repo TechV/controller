@@ -10,17 +10,17 @@
 #include "interface.h"
 
 
-static struct js_event js_e;
+static struct js_event js_e[0xff];
 static int fd = 0;
 static int ret;
-static int c;
+static int i;
 
-int map(int x, int in_min, int in_max, int out_min, int out_max) {
+static int map(int x, int in_min, int in_max, int out_min, int out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
 int rec_open() {
-	fd = open ("/dev/input/js0", O_RDONLY | O_NONBLOCK);	
+	fd = open ("/dev/input/js0", O_RDONLY | O_NONBLOCK | O_NOATIME);	
 	if (fd < 0) {
 		printf("can't open js0: [%i] [%s]\n", fd, strerror(errno));
 		return -1;
@@ -28,48 +28,40 @@ int rec_open() {
 	return rec_update();
 }
 
-void process_jsevent(struct js_event *e) {
-	if (e->type==JS_EVENT_INIT) {
-		printf("JS buffer full?\n");	
-		return;
+int process_jsevent(struct js_event *e) {
+	if ((e->type & JS_EVENT_INIT)==JS_EVENT_INIT) {
+		//printf("JS buffer full?\n");	
+		return 0;
 	}
 
-	if (e->type==JS_EVENT_BUTTON) {
+	if (e->type==JS_EVENT_BUTTON && e->value) {
 		printf("B %2u VAL: %4i\n",e->number,e->value);
+		rec.aux = e->number;
 	}
 	if ((e->type==JS_EVENT_AXIS) && (e->number<4)) {
-		printf("A %2u VAL: %4i\n",e->number,e->value);
-		rec.yprt[0] = map(e->value,-255,255,-45,45);
-		rec.yprt[1] = map(e->value,-255,255,-45,45);
-		rec.yprt[2] = map(e->value,-255,255,-45,45);
-		rec.yprt[3] = map(e->value,-255,255,0,100);
+		//printf("A %2u VAL: %4i\n",e->number,e->value);
+		switch(e->number) {
+			case 0: rec.yprt[0] = map(e->value,-32767,32767,45,-45); break;
+			case 1: rec.yprt[3] = map(e->value,-32767,32767,500,-500); break;
+			case 2: rec.yprt[2] = map(e->value,-32767,32767,-45,45); break;
+			case 3: rec.yprt[1] = map(e->value,-32767,32767,45,-45); break;
+		}
 	}
-	
+	return 0;	
 }
 
 int rec_update() {
-        pthread_mutex_lock( &rec.mutex );
-	
-	c = 0;
-	do { //read all event one by one
-		ret = read (fd, &js_e, sizeof(js_e));
-		process_jsevent(&js_e);
-		c++;
-	} while (ret > 0);
-	
-	if (errno != EAGAIN) {
+	ret = read (fd, js_e, sizeof(js_e));
+	if (ret<0 && errno != EAGAIN) {
 		printf("Error reading js0: [%i] [%s]\n",errno,strerror(errno));
 		return -1;
-	}
-
-        clock_gettime(CLOCK_REALTIME, &rec.ts);
-
-	//rec.yprt[0] = 0;
-	//rec.yprt[1] = 0;
-	//rec.yprt[2] = 0;
-	//rec.yprt[3] = 0;
-
-        pthread_mutex_unlock( &rec.mutex );
+	} 
+	if (ret>0) {
+		for (i=0;i<ret/sizeof(struct js_event);i++)
+			process_jsevent(&js_e[i]);
+		return 1;
+	}	
+	
 	return 0;
 }
 
