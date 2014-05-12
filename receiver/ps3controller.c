@@ -44,7 +44,7 @@ int process_jsevent(struct js_event *e) {
 	if ((e->type==JS_EVENT_AXIS) && (e->number<4)) {
 		//printf("A %2u VAL: %4i\n",e->number,e->value);
 		switch(e->number) {
-			case 0: rec.yprt[0] = map(e->value,-32767,32767,90,-90); break;
+			case 0: rec.yprt[0] = map(e->value,-32767,32767,100,-100); break;
 			case 1: rec.yprt[3] = map(e->value,-32767,32767,config.esc_max,config.esc_max-2*throttle_threshold); break;
 			case 2: rec.yprt[2] = map(e->value,-32767,32767,45,-45); break;
 			case 3: rec.yprt[1] = map(e->value,-32767,32767,45,-45); break;
