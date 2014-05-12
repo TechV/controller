@@ -13,6 +13,8 @@ int config_open(const char *path) {
         if (f == NULL) state = 1; 
 
 	if (state ==0) {
+
+		if (fscanf(f,"%i\t%i\n",&config.esc_min,&config.esc_max)<0) state = 1;
 		if (fscanf(f,"%f\t%f\t%f\n",&config.pid_r[0].min,&config.pid_r[1].min,&config.pid_r[2].min)<0) state = 1;
 		if (fscanf(f,"%f\t%f\t%f\n",&config.pid_r[0].max,&config.pid_r[1].max,&config.pid_r[2].max)<0) state = 1;
 		if (fscanf(f,"%f\t%f\t%f\n",&config.pid_s[0].min,&config.pid_s[1].min,&config.pid_s[2].min)<0) state = 1;
@@ -29,25 +31,27 @@ int config_open(const char *path) {
 		fflush(NULL);
 	}
 	if (state) {
-                printf("No config file. New will be created!\n");
+                printf("No config file or config syntax issue. New will be created!\n");
 		for (int i=0;i<3;i++) {
 			config.trim[i] = 0.0f;
 			pid_init(&config.pid_r[i]);
 			pid_init(&config.pid_s[i]);
-			config.pid_s[i].min = -150;
-			config.pid_s[i].max = 150;
-			config.pid_r[i].min = -300;
-			config.pid_r[i].max = 300;
+			config.pid_s[i].min = -180;
+			config.pid_s[i].max = 180;
+			config.pid_r[i].min = -360;
+			config.pid_r[i].max = 360;
 		}
 
 		//some default values if no config file
+		config.esc_min = 1000;
+		config.esc_max = 1900;
 
-		config.pid_r[0].Kp=2.0f;  //yaw
-		config.pid_r[1].Kp=0.465f;  //pitch
-		config.pid_r[2].Kp=0.465f;  //roll
-		config.pid_s[0].Kp=10.0f;  //yaw
-		config.pid_s[1].Kp=4.5f;  //pitch
-		config.pid_s[2].Kp=4.5f;  //roll
+		config.pid_r[0].Kp=2.4f;  //yaw
+		config.pid_r[1].Kp=0.865f;  //pitch
+		config.pid_r[2].Kp=0.865f;  //roll
+		config.pid_s[0].Kp=9.0f;  //yaw
+		config.pid_s[1].Kp=2.5f;  //pitch
+		config.pid_s[2].Kp=2.5f;  //roll
 
 		config.pid_r[1].Ki=0.000f;
 		config.pid_r[2].Ki=0.000f;
@@ -59,6 +63,7 @@ int config_open(const char *path) {
 
 
 	printf("Config:\n");
+	printf("ESC min (us): %i; max (us): %i;\n",config.esc_min,config.esc_max);
 	printf("PID_R_YAW_Kp: %2.3f; PID_R_PITCH_Kp: %2.3f; PID_R_ROLL_Kp: %2.3f;\n",config.pid_r[0].Kp,config.pid_r[1].Kp,config.pid_r[2].Kp);
 	printf("PID_R_YAW_Ki: %2.3f; PID_R_PITCH_Ki: %2.3f; PID_R_ROLL_Ki: %2.3f;\n",config.pid_r[0].Ki,config.pid_r[1].Ki,config.pid_r[2].Ki);
 	printf("PID_R_YAW_Kd: %2.3f; PID_R_PITCH_Kd: %2.3f; PID_R_ROLL_Kd: %2.3f;\n",config.pid_r[0].Kd,config.pid_r[1].Kd,config.pid_r[2].Kd);
@@ -76,6 +81,7 @@ int config_save() {
 		return -1;
         }
 
+	fprintf(f,"%i\t%i\n",config.esc_min,config.esc_max);
 	fprintf(f,"%f\t%f\t%f\n",config.pid_r[0].min,config.pid_r[1].min,config.pid_r[2].min);
 	fprintf(f,"%f\t%f\t%f\n",config.pid_r[0].max,config.pid_r[1].max,config.pid_r[2].max);
 	fprintf(f,"%f\t%f\t%f\n",config.pid_s[0].min,config.pid_s[1].min,config.pid_s[2].min);

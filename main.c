@@ -31,11 +31,9 @@
 #define MOTOR_FR 1
 #define MOTOR_BR 0 
 
-#define TUNE_KP 0.05f
-#define TUNE_KI 0.5f
-#define TUNE_TRIM 0.5f //used to correct drift
+#define GYRO_RATE 200 
 
-#define SELF_LANDING_THRUST 350 //in case of receiver failure the quad will be set to the following thrust
+#define SELF_LANDING_THRUST 1300 //in case of receiver failure the quad will be set to the following thrust
 
 static int err;
 static RTIME t_err;
@@ -48,15 +46,11 @@ int armed = 0;
 int inflight = 0;
 int emergency = 0;
 
-int mode = 0; //0 - flight; 1 - setup
+int mode = 0; //0 - flight; 1 - setup yaw; 2 - setup pitch; 3 - setup roll
+float yaw_target = 0.0f;
 
 RTIME t; //start time 
 
-static int map(int x, int in_min, int in_max, int out_min, int out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-	float yaw_target = 0.0f;
 void log() {
 	static unsigned long l = 0;
 	static RTIME t1=rt_timer_read();
@@ -69,29 +63,21 @@ void log() {
 	dt = (t2-t1)/1000000;
 	t1 = t2;
 
-	if (rec.yprt[3]>5.0f) { //create log only when in flight
-		flog_push(28
-			,(float)(t2-t)/1000000
-			,ms.gyro[0],ms.gyro[1],ms.gyro[2]
-			,ms.ypr[0],ms.ypr[1],ms.ypr[2]
-			,rec.yprt[0],rec.yprt[1],rec.yprt[2],rec.yprt[3]
-			,config.trim[0],config.trim[1],config.trim[2]
-			,config.pid_s[1].Kp,config.pid_s[1].Ki,config.pid_s[1].Kd
-			,config.pid_r[1].Kp,config.pid_r[1].Ki,config.pid_r[1].Kd
-			,config.pid_r[0].value,config.pid_r[1].value,config.pid_r[2].value
-			,ms.c[0],ms.c[1],ms.c[2]
+	if (inflight) { //create file log only when in flight
+		flog_push(8
+			,dt,ms.count
+			,config.pid_r[1].Kp,config.pid_r[2].Kp
+			,config.pid_s[1].Kp,config.pid_r[1].value
+			//,ms.c[0],ms.c[1],ms.c[2]
 			,bs.alt,bs.t
 			);
 	}
 
-	
 	l++;
-	if (l%100 == 0) { //every second
-		printf("dt = %lu\ts0=%2.2f,yt=%2.2f,p0=%2.2f\tp1=%2.3f\tp2=%2.3f\tdy=%2.1f,dp=%2.1f,dr=%2.1f,RKp=%2.2f,RKd=%2.2f,SKp=%2.2f,SKi=%2.2f\talt=%2.1f\n",
-			//dt,ms.ypr[0],yaw_target,config.pid_r[0].value
-			dt,config.pid_s[0].value,yaw_target,config.pid_r[0].value,config.pid_r[1].value,config.pid_r[2].value
-			,config.trim[0],config.trim[1],config.trim[2],config.pid_r[1].Kp,config.pid_r[1].Kd,config.pid_s[1].Kp,config.pid_s[1].Ki,bs.alt); 
-
+	if (l%200 == 0) { 
+		printf("c = %i\tthrottle=%2.1f\t\n",
+			ms.count
+			,rec.yprt[3]);
 		}
 }
 
@@ -103,49 +89,60 @@ void flush() {
 }
 
 void do_adjustments() {
-	//process receiver command
-	float *p1a,*p1b,*p2a,*p2b;
+	if (rec.aux<0) return;
 
-	if (mode) {
-		p1a = &config.pid_r[1].Kp;
-		p2a = &config.pid_r[2].Kp;
-		//p1b = &config.pid_r[1].Kd;
-		//p2b = &config.pid_r[2].Kd;
-	} else {
-		p1a = &config.pid_s[1].Kp;
-		p2a = &config.pid_s[2].Kp;
-		p1b = &config.pid_s[1].Ki;
-		p2b = &config.pid_s[2].Ki;
+	static float adj1; //for Kp
+	static float adj2; //for Ki
+	static float adj3 = 0.5f; //for trim
+
+	static float *v1,*v2,*v3,*v4;
+	static float _dummy = 0.0f;
+	static float *dummy = &_dummy;
+
+	if (mode == 0) { //normal - stabilized flight mode
+		adj1 = 0.1f;
+		adj2 = 0.5f;
+		v1 = &config.pid_s[1].Kp;
+		v2 = &config.pid_s[2].Kp;
+		v3 = &config.pid_s[1].Ki;
+		v4 = &config.pid_s[2].Ki;
+	} else if (mode == 1) { //setup mode - setup yaw
+		adj1 = 0.025f;
+		v1 = &config.pid_r[0].Kp;
+		v2 = v3 = v4 = dummy;
+	} else if (mode == 2) { //setup pitch
+		adj1 = 0.025f;
+		v1 = &config.pid_r[1].Kp;
+		v2 = v3 = v4 = dummy;
+	} else if (mode == 3) { //setup roll
+		adj1 = 0.025f;
+		v1 = &config.pid_r[2].Kp;
+		v2 = v3 = v4 = dummy;
 	}
 
 	switch (rec.aux) {
 		case 10:
-			(*p1a)+=TUNE_KP; (*p2a)+=TUNE_KP; break;
+			(*v1)+=adj1; (*v2)+=adj1; break;
 		case 8:
-			(*p1a)-=TUNE_KP; (*p2a)-=TUNE_KP; break;
+			(*v1)-=adj1; (*v2)-=adj1; break;
 		case 11:
-			(*p1b)+=TUNE_KP; (*p2b)+=TUNE_KP; break;
+			(*v3)+=adj2; (*v3)+=adj2; break;
 		case 9:
-			(*p1b)-=TUNE_KP; (*p2b)-=TUNE_KP; break;
+			(*v3)-=adj2; (*v3)-=adj2; break;
 		case 4: //up button trim
-			config.trim[1]+=TUNE_TRIM; break;
+			config.trim[1]+=adj3; break;
 		case 6: //down button trim
-			config.trim[1]-=TUNE_TRIM; break;
+			config.trim[1]-=adj3; break;
 		case 7: //left button trim
-			config.trim[2]-=TUNE_TRIM; break;
+			config.trim[2]+=adj3; break;
 		case 5: //right button trim
-			config.trim[2]+=TUNE_TRIM; break;
-		case 15: //yaw left trim
-			config.trim[0]+=TUNE_TRIM; break;
-		case 13: //yaw right trim
-			config.trim[0]-=TUNE_TRIM; break;
-		case 16: //yaw right trim
-			if (mode ==0) mode =1;
-			else mode =0;
-			printf("mode: %i\n",mode);
+			config.trim[2]-=adj3; break;
+		case 16: 
+			mode++;
+			if (mode==4) mode=0;
 			break;
 		case 0: 
-			if (!inflight)	{ config_save(); flush(); } break;
+			if (!inflight)	{ config_save(); flog_save(); flush(); } break;
 	}
 	rec.aux=-1; //reset receiver command
 
@@ -164,10 +161,10 @@ void pre_flight() {
 	//wait for gyro to stabilize - this will take around 8 sec - see mpu6050 calibration
 	if (!armed && ms.gyro[0]>-1.0f && ms.gyro[1]>-1.0f && ms.gyro[2]>-1.0f &&
 		ms.gyro[0]<1.0f && ms.gyro[1]<1.0f && ms.gyro[2]<1.0f) {
-			sc_update(MOTOR_FR,100);
-			sc_update(MOTOR_FL,100);
-			sc_update(MOTOR_BR,100);
-			sc_update(MOTOR_BL,100);
+			sc_update(MOTOR_FR,config.esc_min);
+			sc_update(MOTOR_FL,config.esc_min);
+			sc_update(MOTOR_BR,config.esc_min);
+			sc_update(MOTOR_BL,config.esc_min);
 			yaw_target = ms.ypr[0];
 			armed=1;
 			printf("ARMED!\n");
@@ -189,26 +186,22 @@ void handle_issues() {
 
 void autoflight() {
 	if (emergency) { //emergency //TODO: based on altitude
-		static float alt = bs.alt;
 		RTIME _t = rt_timer_read();
 		unsigned long dt = (long)(_t-t_err)/1000000; //calculate time since error in ms;
 		
 		rec.yprt[0]=rec.yprt[1]=rec.yprt[2]=0.0f;//stabilize
-		if (dt<4000) rec.yprt[3] = SELF_LANDING_THRUST; //do self landing for first 7 sec
-		else if (dt<10000) rec.yprt[3] = 0; //decrease thrust by half for another 3sec
-		else rec.yprt[3] = 0.0f; //switch engines off 
+		if (dt<4000) rec.yprt[3] = SELF_LANDING_THRUST; //do self landing for first 4 sec
+		else rec.yprt[3] = 0.0f; //switch engines off after 4 sec 
 	}
 
 }
 
 void controller_stable( void *ptr ) {
-	float m_fl,m_bl,m_fr,m_br; //motor FL, BL, FR, BR
 	unsigned long c = 0;
+	float m_fl,m_bl,m_fr,m_br; //motor FL, BL, FR, BR
 
-	static int gyro_rate = 100;
-	float loop_ms = 1000.0f/gyro_rate;
+	float loop_ms = 1000.0f/GYRO_RATE;
 	float loop_s = loop_ms/1000.0f;
-	RTIME t1;
 
 	while (ms_update()!=0);//empty MPU
 
@@ -220,13 +213,13 @@ void controller_stable( void *ptr ) {
 	t=rt_timer_read();
 	while(1) {
 		ms_err = ms_update();
-		if (ms_err==0) continue; //dont do anything if gyro has no new data; depends on gyro RATE (100Hz)
+		if (ms_err==0) continue; //dont do anything if gyro has no new data; depends on gyro RATE
 		if (ms_err<0) { //something wrong with gyro: i2c issue or fifo full!
 			ms.ypr[0]=ms.ypr[1]=ms.ypr[2] = 0.0f; 
 			ms.gyro[0]=ms.gyro[1]=ms.gyro[2] = 0.0f;
 		}
 		c++; //our counter so we know when to read barometer (c increases every 10ms)
-		bs_err = bs_update(c*loop_ms);
+		//bs_err = bs_update(c*loop_ms);
 
 		rec_err = rec_update();
 		
@@ -234,27 +227,21 @@ void controller_stable( void *ptr ) {
 		handle_issues();
 		autoflight();
 
-		if (armed && rec.yprt[3]>5.0f) { //5% of throttle
-			if (!inflight) {//enable pids since we are changing state changes to inflight 
-				printf("inflight is on\n");
-			}
+		if (armed && rec.yprt[3]>(config.esc_min+10)) { 
 			inflight = 1; 
 		}
 
-		if (rec.yprt[3]<=5.0f) {
-			if (inflight) {//disable pids since we are changing state changes to no inflight 
-				printf("inflight is off!\n");
-			}
+		if (rec.yprt[3]<=(config.esc_min+10)) {
 			inflight = 0;	
-			sc_update(MOTOR_FL,1000);
-			sc_update(MOTOR_BL,1000);
-			sc_update(MOTOR_FR,1000);
-			sc_update(MOTOR_BR,1000);
+			sc_update(MOTOR_FL,config.esc_min);
+			sc_update(MOTOR_BL,config.esc_min);
+			sc_update(MOTOR_FR,config.esc_min);
+			sc_update(MOTOR_BR,config.esc_min);
 			yaw_target = ms.ypr[0];	
 			bs.p0 = bs.p;
 		}
 		
-		if (rec.yprt[3]<50.0f) {
+		if (rec.yprt[3]<(config.esc_min+50)) { //use integral part only if there is some throttle
 			for (int i=0;i<3;i++) { 
 				config.pid_r[i]._KiTerm = 0.0f;
 				config.pid_s[i]._KiTerm = 0.0f;
@@ -269,34 +256,43 @@ void controller_stable( void *ptr ) {
 
 		//do STAB PID
 		for (int i=0;i<3;i++) { 
-			if (i==0) pid_update(&config.pid_s[i],yaw_target,ms.ypr[i],loop_s);
+			if (i==0) //keep yaw_target 
+				pid_update(&config.pid_s[i],yaw_target,ms.ypr[i],loop_s);
 			else
 				pid_update(&config.pid_s[i],rec.yprt[i]+config.trim[i],ms.ypr[i],loop_s);
 			
 		}
 
-		//manually set yaw
-		if (abs(rec.yprt[0])>2.0f) {
+		//yaw requests will be fed directly to rate pid
+		if (abs(rec.yprt[0])>7.5f) {
 			config.pid_s[0].value = rec.yprt[0];
 			yaw_target = ms.ypr[0];	
 		}
 
-		if (mode) for (int i=0;i<3;i++) config.pid_s[i].value = 0;
+		if (mode == 1) { //yaw setup
+			config.pid_s[0].value = 0.0f;
+			config.pid_s[1].value = ms.gyro[1];
+			config.pid_s[2].value = ms.gyro[2];
+		} else if (mode == 2) { //pitch setup
+			config.pid_s[0].value = ms.gyro[0];
+			config.pid_s[1].value = 0.0f;
+			config.pid_s[2].value = ms.gyro[2];
+		} else if (mode == 3) { //roll setup
+			config.pid_s[0].value = ms.gyro[0];
+			config.pid_s[1].value = ms.gyro[1];
+			config.pid_s[2].value = 0.0f;
+		}
+
 		//do RATE PID
 		for (int i=0;i<3;i++) { 
 			pid_update(&config.pid_r[i],config.pid_s[i].value,ms.gyro[i],loop_s);
 		}
 
 		//calculate motor speeds
-		m_fl = rec.yprt[3]+config.pid_r[2].value-config.pid_r[1].value+config.pid_r[0].value;
-		m_bl = rec.yprt[3]+config.pid_r[2].value+config.pid_r[1].value-config.pid_r[0].value;
-		m_fr = rec.yprt[3]-config.pid_r[2].value-config.pid_r[1].value-config.pid_r[0].value;
-		m_br = rec.yprt[3]-config.pid_r[2].value+config.pid_r[1].value+config.pid_r[0].value;
-
-		m_fl = map(m_fl,0,700,1050,1860); //afro esc min: 1060, max 1860
-		m_bl = map(m_bl,0,700,1050,1860);
-		m_fr = map(m_fr,0,700,1050,1860);
-		m_br = map(m_br,0,700,1050,1860);
+		m_fl = rec.yprt[3]-config.pid_r[2].value-config.pid_r[1].value+config.pid_r[0].value;
+		m_bl = rec.yprt[3]-config.pid_r[2].value+config.pid_r[1].value-config.pid_r[0].value;
+		m_fr = rec.yprt[3]+config.pid_r[2].value-config.pid_r[1].value-config.pid_r[0].value;
+		m_br = rec.yprt[3]+config.pid_r[2].value+config.pid_r[1].value+config.pid_r[0].value;
 
 		//log();
 
@@ -314,10 +310,26 @@ void catch_signal(int sig)
 	sc_close();
 }
 
+#define MAX_SAFE_STACK (MAX_LOG*MAX_VALS + 64*1024)
+void stack_prefault(void) {
+
+        unsigned char dummy[MAX_SAFE_STACK];
+
+        memset(dummy, 0, MAX_SAFE_STACK);
+        return;
+}
 
 int main() {
+	struct sched_param param;
+
         signal(SIGTERM, catch_signal);
         signal(SIGINT, catch_signal);
+
+	param.sched_priority = 49;
+        if(sched_setscheduler(0, SCHED_FIFO, &param) == -1) {
+                perror("sched_setscheduler failed");
+                exit(-1);
+        }
 
 
         if(mlockall(MCL_CURRENT|MCL_FUTURE) == -1) {
@@ -325,13 +337,15 @@ int main() {
                 exit(-2);
         }
 
+	stack_prefault();
+
 	err=config_open("/var/local/rpicopter.config");
 	if (err<0) {
             	printf("Failed to initiate config! [%s]\n", strerror(err));	
 		return -1;
 	}
 
-	err=flog_open("/var/local/flight.log");
+	err=flog_open("/var/local/");
 	if (err<0) {
             	printf("Failed to initiate log! [%s]\n", strerror(err));	
 		return -1;
@@ -343,7 +357,7 @@ int main() {
 	    return -1;
 	}
 
-	err=ms_open();
+	err=ms_open(GYRO_RATE);
         if (err != 0) {
             printf("Failed to initiate gyro! [%s]\n", strerror(err));	
 	    return -1;
@@ -355,12 +369,13 @@ int main() {
 		return -1;
 	}
 
+/*
 	err=bs_open();
 	if (err<0) {
             	printf("Failed to initiate pressure sensor! [%s]\n", strerror(err));	
 		return -1;
 	}
-
+*/
 	delay_ms(1000);
 	controller_stable(NULL);
 	return 0;

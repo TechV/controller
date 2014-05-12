@@ -4,8 +4,8 @@
 #include <stdarg.h>
 
 //#define MAX_LOG 128000
-#define MAX_LOG 6000
-#define MAX_VALS 32 
+#define MAX_LOG 24000
+#define MAX_VALS 24 
 
 struct s_flog {
 	float v[MAX_VALS];

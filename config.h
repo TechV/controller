@@ -4,6 +4,7 @@
 #include "pid.h"
 
 struct s_config {
+	int esc_min, esc_max;
 	struct s_pid pid_r[3];
 	struct s_pid pid_s[3];
 	float trim[3];

@@ -5,18 +5,11 @@
 #include <string.h>
 #include <math.h>
 
-#include "helper_3dmath.h"
 #include "interface.h"
 #include "inv_mpu_lib/inv_mpu.h"
 #include "inv_mpu_lib/inv_mpu_dmp_motion_driver.h"
 #include "mpu6050.h"
 
-#define YAW 0
-#define PITCH 1
-#define ROLL 2
-#define DIM 3
-
-#define wrap_180(x) (x < -180 ? x+360 : (x > 180 ? x - 360: x))
 #define delay_ms(a)    usleep(a*1000)
 
 static int16_t c[3]; //compass
@@ -31,10 +24,6 @@ static int dmpReady = 0;
 static int16_t sensors;
 static uint8_t devStatus;      // return status after each device operation
 static uint8_t fifoCount;     // count of all bytes currently in FIFO
-
-static int map(int x, int in_min, int in_max, int out_min, int out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
 
 static int err = 0;
 
@@ -86,7 +75,6 @@ static unsigned short inv_orientation_matrix_to_scalar(
 }
 
 #define FSR			2000
-#define DMP_RATE	100	
 #define GYRO_SENS	( 131.0f * 250.0 / (float)FSR )
 #define QUAT_SENS	1073741824.f //2^30
 
@@ -132,7 +120,7 @@ static float rad2deg( float rad )
 
 
 
-int ms_open() {
+int ms_open(unsigned int rate) {
 	dmpReady=1;
 	initialized = 0;
 
@@ -144,7 +132,7 @@ int ms_open() {
 		return -1;
 	}
 	printf("Setting MPU sensors...\n");
-	if (mpu_set_sensors(INV_XYZ_GYRO|INV_XYZ_ACCEL|INV_XYZ_COMPASS)!=0) {
+	if (mpu_set_sensors(INV_XYZ_GYRO|INV_XYZ_ACCEL)!=0) {
 		printf("Failed to set sensors!\n");
 		return -1;
 	}
@@ -183,8 +171,8 @@ int ms_open() {
 		return -1;
 	}
 
-	printf("Setting DMP fifo rate to: %i\n",DMP_RATE);
-	if (dmp_set_fifo_rate(DMP_RATE)!=0) {
+	printf("Setting DMP fifo rate to: %i\n",rate);
+	if (dmp_set_fifo_rate(rate)!=0) {
 		printf("Failed to set dmp fifo rate!\n");
 		return -1;
 	}
@@ -212,7 +200,7 @@ int ms_open() {
 
 	printf("Checking... ");
 	do {
-		delay_ms(5*(1000/DMP_RATE));  //dmp will habve 4 (5-1) packets based on the fifo_rate
+		delay_ms(5*1000/rate);  //dmp will habve 4 (5-1) packets based on the fifo_rate
 		r=dmp_read_fifo(g,a,_q,&sensors,&fifoCount);
 	} while (r!=0 || fifoCount<5); //packtets!!!
 	printf("Collected: %i packets.\n",fifoCount);
@@ -243,6 +231,7 @@ int ms_open() {
 }
 
 int ms_update() {
+	static unsigned int dt = 0;
 	float x,y,z;
 	if (!dmpReady) {
 		printf("Error: DMP not ready!!\n");
@@ -250,9 +239,11 @@ int ms_update() {
 	}
 	fifoCount = -1;
 	err=dmp_read_fifo(g,a,_q,&sensors,&fifoCount); //gyro and accel can be null because of being disabled in the efeatures
+	
+	ms.count = fifoCount;
 
 	if (fifoCount>1) {
-		printf("MPU fifo queue: %i!!!\n",fifoCount);
+		//printf("MPU fifo queue: %i!!!\n",fifoCount);
 		do {
 			fifoCount = -1;
 			err=dmp_read_fifo(g,a,_q,&sensors,&fifoCount); //gyro and accel can be null because of being disabled in the efeatures
@@ -273,22 +264,12 @@ int ms_update() {
 	//2 = roll
 	ms.ypr[0] = rad2deg(z);
 	ms.ypr[1] = rad2deg(y);
-	ms.ypr[2] = rad2deg(x);
+	ms.ypr[2] = -rad2deg(x);
 
 	ms.gyro[0] = -(float)g[2] / GYRO_SENS;
 	ms.gyro[1] = (float)g[1] / GYRO_SENS;
-	ms.gyro[2] = -(float)g[0] / GYRO_SENS;
+	ms.gyro[2] = (float)g[0] / GYRO_SENS;
 	
-	int i = mpu_get_compass_reg(c);
-	if (i!=0) {
-		printf("compass error!!!\i\n",i);
-	
-		return -100;
-	}
-	for (i=0;i<3;i++)
-		ms.c[i]=(float)c[i]; 
-	
-
 	return 1;
 }
 
