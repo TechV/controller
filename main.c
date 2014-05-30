@@ -74,11 +74,12 @@ void log() {
 			);
 	}
 
-		printf("c: %i\ty: %2.1f, p: %2.1f, r: %2.1f\tgy: %2.1f,gp: %2.1f,gr: %2.1f\try: %2.1f, rp: %2.1f, rr: %2.1f, rt: %2.1f\n",
+		printf("c: %i\ty: %2.1f, p: %2.1f, r: %2.1f\tgy: %2.1f,gp: %2.1f,gr: %2.1f\try: %2.1f, rp: %2.1f, rr: %2.1f, rt: %2.1f\n"
 			,ms.count
 			,ms.ypr[0],ms.ypr[1],ms.ypr[2]
 			,ms.gyro[0],ms.gyro[1],ms.gyro[2]
 			,rec.yprt[0],rec.yprt[1],rec.yprt[2],rec.yprt[3]
+			);
 		}
 }
 
