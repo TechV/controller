@@ -42,7 +42,7 @@ libs/libi2cdev.a:
 	$(MAKE) -C libs/i2cdev
 
 install:
-        $(INSTALL) -d $(DESTDIR)/usr/local/bin/
+	$(INSTALL) -d $(DESTDIR)/usr/local/bin/
 	$(INSTALL) -m 755 controller $(DESTDIR)/usr/local/bin/
 
 clean:

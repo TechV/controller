@@ -63,21 +63,22 @@ void log() {
 	dt = (t2-t1)/1000000;
 	t1 = t2;
 
+	l++;
+	if (l%200 == 0) { 
 	if (inflight) { //create file log only when in flight
-		flog_push(8
-			,dt,ms.count
-			,config.pid_r[1].Kp,config.pid_r[2].Kp
-			,config.pid_s[1].Kp,config.pid_r[1].value
-			//,ms.c[0],ms.c[1],ms.c[2]
-			,bs.alt,bs.t
+		flog_push(12
+			,dt,dt
+			,ms.ypr[0],ms.ypr[1],ms.ypr[2]
+			,ms.gyro[0],ms.gyro[1],ms.gyro[2]
+			,rec.yprt[0],rec.yprt[1],rec.yprt[2],rec.yprt[3]
 			);
 	}
 
-	l++;
-	if (l%200 == 0) { 
-		printf("c = %i\tthrottle=%2.1f\t\n",
-			ms.count
-			,rec.yprt[3]);
+		printf("c: %i\ty: %2.1f, p: %2.1f, r: %2.1f\tgy: %2.1f,gp: %2.1f,gr: %2.1f\try: %2.1f, rp: %2.1f, rr: %2.1f, rt: %2.1f\n",
+			,ms.count
+			,ms.ypr[0],ms.ypr[1],ms.ypr[2]
+			,ms.gyro[0],ms.gyro[1],ms.gyro[2]
+			,rec.yprt[0],rec.yprt[1],rec.yprt[2],rec.yprt[3]
 		}
 }
 
@@ -161,13 +162,9 @@ void pre_flight() {
 	//wait for gyro to stabilize - this will take around 8 sec - see mpu6050 calibration
 	if (!armed && ms.gyro[0]>-1.0f && ms.gyro[1]>-1.0f && ms.gyro[2]>-1.0f &&
 		ms.gyro[0]<1.0f && ms.gyro[1]<1.0f && ms.gyro[2]<1.0f) {
-			sc_update(MOTOR_FR,config.esc_min);
-			sc_update(MOTOR_FL,config.esc_min);
-			sc_update(MOTOR_BR,config.esc_min);
-			sc_update(MOTOR_BL,config.esc_min);
+			printf("Gyro calibrated. \n");
 			yaw_target = ms.ypr[0];
 			armed=1;
-			printf("ARMED!\n");
 	}
 }
 
@@ -294,7 +291,7 @@ void controller_stable( void *ptr ) {
 		m_fr = rec.yprt[3]+config.pid_r[2].value-config.pid_r[1].value-config.pid_r[0].value;
 		m_br = rec.yprt[3]+config.pid_r[2].value+config.pid_r[1].value+config.pid_r[0].value;
 
-		//log();
+		log();
 
 		if (inflight) {
 			sc_update(MOTOR_FL,m_fl);
@@ -376,6 +373,7 @@ int main() {
 		return -1;
 	}
 */
+	printf("Waiting for MPU calibration... \n");
 	delay_ms(1000);
 	controller_stable(NULL);
 	return 0;

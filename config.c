@@ -44,7 +44,7 @@ int config_open(const char *path) {
 
 		//some default values if no config file
 		config.esc_min = 1000;
-		config.esc_max = 1900;
+		config.esc_max = 2000;
 
 		config.pid_r[0].Kp=2.4f;  //yaw
 		config.pid_r[1].Kp=0.865f;  //pitch
